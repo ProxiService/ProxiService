@@ -2,6 +2,8 @@
 
 use Laravel\Fortify\Features;
 
+$emailVerificationRequired = env('APP_ENV') !== 'local';
+
 return [
 
     /*
@@ -131,6 +133,8 @@ return [
     */
 
     'views' => true,
+
+    'email_verification_required' => $emailVerificationRequired,
 
     /*
     |--------------------------------------------------------------------------

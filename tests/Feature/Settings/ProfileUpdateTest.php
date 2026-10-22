@@ -1,6 +1,20 @@
 <?php
 
 use App\Models\User;
+use Inertia\Testing\AssertableInertia as Assert;
+
+test('profile page does not require email verification locally', function () {
+    config(['fortify.email_verification_required' => false]);
+
+    $user = User::factory()->unverified()->create();
+
+    $this->actingAs($user)
+        ->get(route('profile.edit'))
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('settings/profile')
+            ->where('mustVerifyEmail', false),
+        );
+});
 
 test('profile page is displayed', function () {
     $user = User::factory()->create();
