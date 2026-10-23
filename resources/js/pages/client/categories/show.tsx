@@ -1,5 +1,6 @@
 import { Head, Link } from '@inertiajs/react';
-import { ArrowLeft, Clock3, HandCoins, Wrench } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Clock3, HandCoins, Wrench } from 'lucide-react';
+import { providers as serviceProviders } from '@/routes/client/services';
 
 type Category = {
     id: number;
@@ -89,12 +90,17 @@ export default function CategoryServices({ category, services }: Props) {
                 {services.length > 0 ? (
                     <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                         {services.map((service) => (
-                            <article
+                            <Link
                                 key={service.id}
-                                className="flex flex-col rounded-xl border bg-card p-5"
+                                href={serviceProviders(service.slug)}
+                                className="group flex flex-col rounded-xl border bg-card p-5 transition-colors hover:border-primary/50 hover:bg-accent/30 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                             >
-                                <div className="flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                                    <Wrench className="size-5" />
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                                        <Wrench className="size-5" />
+                                    </div>
+
+                                    <ArrowRight className="size-5 text-muted-foreground transition-transform group-hover:translate-x-1 group-hover:text-primary" />
                                 </div>
 
                                 <h2 className="mt-4 text-lg font-semibold">
@@ -133,7 +139,7 @@ export default function CategoryServices({ category, services }: Props) {
                                         </div>
                                     )}
                                 </div>
-                            </article>
+                            </Link>
                         ))}
                     </section>
                 ) : (

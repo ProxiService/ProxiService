@@ -120,7 +120,10 @@ export default function EditProviderProfile({
 
                         <div className="mt-5 grid gap-5 md:grid-cols-2">
                             <div className="flex flex-col gap-2">
-                                <label htmlFor="business_name" className="text-sm font-medium">
+                                <label
+                                    htmlFor="business_name"
+                                    className="text-sm font-medium"
+                                >
                                     Nom commercial
                                 </label>
 
@@ -128,7 +131,10 @@ export default function EditProviderProfile({
                                     id="business_name"
                                     value={form.data.business_name}
                                     onChange={(event) =>
-                                        form.setData('business_name', event.target.value)
+                                        form.setData(
+                                            'business_name',
+                                            event.target.value,
+                                        )
                                     }
                                     maxLength={150}
                                     placeholder="Ex. : Jean Plomberie"
@@ -143,7 +149,10 @@ export default function EditProviderProfile({
                             </div>
 
                             <div className="flex flex-col gap-2">
-                                <label htmlFor="phone" className="text-sm font-medium">
+                                <label
+                                    htmlFor="phone"
+                                    className="text-sm font-medium"
+                                >
                                     Téléphone professionnel
                                 </label>
 
@@ -152,7 +161,10 @@ export default function EditProviderProfile({
                                     type="tel"
                                     value={form.data.phone}
                                     onChange={(event) =>
-                                        form.setData('phone', event.target.value)
+                                        form.setData(
+                                            'phone',
+                                            event.target.value,
+                                        )
                                     }
                                     maxLength={30}
                                     placeholder="Ex. : 07 XX XX XX XX"
@@ -167,7 +179,10 @@ export default function EditProviderProfile({
                             </div>
 
                             <div className="flex flex-col gap-2 md:col-span-2">
-                                <label htmlFor="bio" className="text-sm font-medium">
+                                <label
+                                    htmlFor="bio"
+                                    className="text-sm font-medium"
+                                >
                                     Présentation
                                 </label>
 
@@ -191,7 +206,10 @@ export default function EditProviderProfile({
                             </div>
 
                             <div className="flex flex-col gap-2">
-                                <label htmlFor="years_experience" className="text-sm font-medium">
+                                <label
+                                    htmlFor="years_experience"
+                                    className="text-sm font-medium"
+                                >
                                     Années d'expérience
                                 </label>
 
@@ -232,8 +250,8 @@ export default function EditProviderProfile({
                                 </h2>
 
                                 <p className="mt-1 text-sm text-muted-foreground">
-                                    Sélectionnez les prestations que vous
-                                    êtes capable de réaliser.
+                                    Sélectionnez les prestations que vous êtes
+                                    capable de réaliser.
                                 </p>
                             </div>
                         </div>
@@ -271,12 +289,14 @@ export default function EditProviderProfile({
                                                         'services',
                                                         isChecked
                                                             ? [
-                                                                  ...form.data.services,
+                                                                  ...form.data
+                                                                      .services,
                                                                   service.id,
                                                               ]
                                                             : form.data.services.filter(
                                                                   (id) =>
-                                                                      id !== service.id,
+                                                                      id !==
+                                                                      service.id,
                                                               ),
                                                     );
                                                 }}
@@ -284,7 +304,7 @@ export default function EditProviderProfile({
                                             />
 
                                             <span className="min-w-0 flex-1">
-                                                <span className="block text-xs font-medium uppercase tracking-wide text-primary">
+                                                <span className="block text-xs font-medium tracking-wide text-primary uppercase">
                                                     {service.category.name}
                                                 </span>
 
@@ -300,7 +320,8 @@ export default function EditProviderProfile({
                                                 <span className="mt-3 flex items-center gap-2 text-sm font-medium">
                                                     <Wrench className="size-4" />
 
-                                                    {service.pricing_type === 'fixed' &&
+                                                    {service.pricing_type ===
+                                                        'fixed' &&
                                                     service.base_price !== null
                                                         ? formatPrice(
                                                               service.base_price,
@@ -352,7 +373,10 @@ export default function EditProviderProfile({
 
                         <div className="mt-5 grid gap-5 md:grid-cols-2">
                             <div className="flex flex-col gap-2">
-                                <label htmlFor="city" className="text-sm font-medium">
+                                <label
+                                    htmlFor="city"
+                                    className="text-sm font-medium"
+                                >
                                     Commune ou ville *
                                 </label>
 
@@ -376,7 +400,10 @@ export default function EditProviderProfile({
                             </div>
 
                             <div className="flex flex-col gap-2">
-                                <label htmlFor="neighborhood" className="text-sm font-medium">
+                                <label
+                                    htmlFor="neighborhood"
+                                    className="text-sm font-medium"
+                                >
                                     Quartier *
                                 </label>
 
@@ -403,7 +430,10 @@ export default function EditProviderProfile({
                             </div>
 
                             <div className="flex flex-col gap-2 md:col-span-2">
-                                <label htmlFor="address" className="text-sm font-medium">
+                                <label
+                                    htmlFor="address"
+                                    className="text-sm font-medium"
+                                >
                                     Adresse complémentaire (facultatif)
                                 </label>
 
@@ -411,7 +441,10 @@ export default function EditProviderProfile({
                                     id="address"
                                     value={form.data.address}
                                     onChange={(event) =>
-                                        form.setData('address', event.target.value)
+                                        form.setData(
+                                            'address',
+                                            event.target.value,
+                                        )
                                     }
                                     maxLength={1000}
                                     rows={2}

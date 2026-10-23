@@ -1,16 +1,22 @@
 <?php
 
+use App\Http\Controllers\Admin\ProviderReviewController;
 use App\Http\Controllers\Client\CategoryController;
 use App\Http\Controllers\Client\DashboardController;
+use App\Http\Controllers\Client\MyServiceRequestsController;
+use App\Http\Controllers\Client\ProviderDetailController;
 use App\Http\Controllers\Client\SearchController;
-use App\Models\ProviderProfile;
+use App\Http\Controllers\Client\ServiceProviderController;
+use App\Http\Controllers\Client\ServiceRequestController;
+use App\Http\Controllers\Prestataire\ProviderProfileController;
+use App\Http\Controllers\Prestataire\ServiceRequestController as PrestataireServiceRequestController;
+use App\Http\Controllers\ServiceRequestConversationController;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Inertia\Response as InertiaResponse;
-use App\Http\Controllers\Prestataire\ProviderProfileController;
 
 /*
 |--------------------------------------------------------------------------
@@ -63,6 +69,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::get('dashboard', DashboardController::class)
                 ->name('dashboard');
 
+            Route::get('requests', MyServiceRequestsController::class)
+                ->name('requests.index');
+
             Route::get('search', SearchController::class)
                 ->name('search');
 
@@ -70,6 +79,36 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 CategoryController::class,
                 'show',
             ])->name('categories.show');
+
+            Route::get('services/{service:slug}/providers', [
+                ServiceProviderController::class,
+                'index',
+            ])->name('services.providers');
+
+            Route::get(
+                'services/{service:slug}/providers/{providerProfile}',
+                [ProviderDetailController::class, 'show']
+            )->name('services.providers.show');
+
+            Route::get(
+                'services/{service:slug}/providers/{providerProfile}/request',
+                [ServiceRequestController::class, 'create']
+            )->name('services.providers.request.create');
+
+            Route::get(
+                'requests/{serviceRequest}/messages',
+                [ServiceRequestConversationController::class, 'show'],
+            )->name('requests.messages.show');
+
+            Route::post(
+                'requests/{serviceRequest}/messages',
+                [ServiceRequestConversationController::class, 'store'],
+            )->name('requests.messages.store');
+
+            Route::post(
+                'services/{service:slug}/providers/{providerProfile}/request',
+                [ServiceRequestController::class, 'store']
+            )->name('services.providers.request.store');
         });
     /*
     |--------------------------------------------------------------------------
@@ -87,6 +126,31 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::get('profile', [ProviderProfileController::class, 'edit'])->name('profile.edit');
 
             Route::put('profile', [ProviderProfileController::class, 'update'])->name('profile.update');
+
+            Route::get('requests', [
+                PrestataireServiceRequestController::class,
+                'index',
+            ])->name('requests.index');
+
+            Route::patch('requests/{serviceRequest}/accept', [
+                PrestataireServiceRequestController::class,
+                'accept',
+            ])->name('requests.accept');
+
+            Route::get(
+                'requests/{serviceRequest}/messages',
+                [ServiceRequestConversationController::class, 'show'],
+            )->name('requests.messages.show');
+
+            Route::post(
+                'requests/{serviceRequest}/messages',
+                [ServiceRequestConversationController::class, 'store'],
+            )->name('requests.messages.store');
+
+            Route::patch('requests/{serviceRequest}/reject', [
+                PrestataireServiceRequestController::class,
+                'reject',
+            ])->name('requests.reject');
         });
 
     /*
@@ -101,6 +165,21 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->group(function () {
             Route::inertia('dashboard', 'admin/dashboard')
                 ->name('dashboard');
+
+            Route::get('providers', [
+                ProviderReviewController::class,
+                'index',
+            ])->name('providers.index');
+
+            Route::patch('providers/{providerProfile}/approve', [
+                ProviderReviewController::class,
+                'approve',
+            ])->name('providers.approve');
+
+            Route::patch('providers/{providerProfile}/reject', [
+                ProviderReviewController::class,
+                'reject',
+            ])->name('providers.reject');
         });
 });
 

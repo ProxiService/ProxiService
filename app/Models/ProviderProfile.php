@@ -7,6 +7,9 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
+/**
+ * @property-read ProviderProfileService $pivot
+ */
 #[Fillable([
     'business_name',
     'bio',
@@ -40,14 +43,15 @@ class ProviderProfile extends Model
     }
 
     /**
-     * @return BelongsToMany<Service, $this>
+     * @return BelongsToMany<Service, $this, ProviderProfileService>
      */
     public function services(): BelongsToMany
     {
         return $this->belongsToMany(
             Service::class,
             'provider_profile_service'
-        )->withPivot(['price', 'is_active'])
+        )->using(ProviderProfileService::class)
+            ->withPivot(['price', 'is_active'])
             ->withTimestamps();
     }
 }

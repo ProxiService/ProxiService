@@ -7,6 +7,7 @@ import {
     Search,
     Wrench,
 } from 'lucide-react';
+import { providers as serviceProviders } from '@/routes/client/services';
 
 type Category = {
     id: number;
@@ -130,9 +131,10 @@ export default function SearchResults({ searchTerm, services }: SearchProps) {
                         {services.length > 0 ? (
                             <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                                 {services.map((service) => (
-                                    <article
+                                    <Link
                                         key={service.id}
-                                        className="flex flex-col rounded-xl border bg-card p-5"
+                                        href={serviceProviders(service.slug)}
+                                        className="group flex flex-col rounded-xl border bg-card p-5 transition-colors hover:border-primary/50 hover:bg-accent/30 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                                     >
                                         <div className="flex items-start justify-between gap-3">
                                             <div className="flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
@@ -144,8 +146,9 @@ export default function SearchResults({ searchTerm, services }: SearchProps) {
                                             </span>
                                         </div>
 
-                                        <h3 className="mt-4 text-lg font-semibold">
+                                        <h3 className="mt-4 flex items-center justify-between gap-3 text-lg font-semibold">
                                             {service.name}
+                                            <ArrowRight className="size-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-1 group-hover:text-primary" />
                                         </h3>
 
                                         <p className="mt-2 flex-1 text-sm text-muted-foreground">
@@ -182,14 +185,11 @@ export default function SearchResults({ searchTerm, services }: SearchProps) {
                                             )}
                                         </div>
 
-                                        <Link
-                                            href={`/client/categories/${service.category.slug}`}
-                                            className="mt-5 inline-flex items-center justify-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium hover:bg-accent"
-                                        >
-                                            Voir la catégorie
+                                        <span className="mt-5 inline-flex items-center justify-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium">
+                                            Voir les prestataires
                                             <ArrowRight className="size-4" />
-                                        </Link>
-                                    </article>
+                                        </span>
+                                    </Link>
                                 ))}
                             </div>
                         ) : (

@@ -1,4 +1,5 @@
-import { Head } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
+import { index as pendingProviders } from '@/routes/admin/providers';
 import {
     AlertTriangle,
     BriefcaseBusiness,
@@ -42,31 +43,37 @@ const managementItems = [
         title: 'Utilisateurs',
         description: 'Consulter et gérer les comptes.',
         icon: Users,
+        href: null,
     },
     {
         title: 'Prestataires',
-        description: 'Examiner les profils professionnels.',
+        description: 'Examiner les profils professionnels en attente.',
         icon: ShieldCheck,
+        href: pendingProviders(),
     },
     {
         title: 'Services et catégories',
         description: 'Organiser les métiers proposés.',
         icon: Wrench,
+        href: null,
     },
     {
         title: 'Prestations et contrats',
         description: 'Suivre les demandes et les contrats.',
         icon: BriefcaseBusiness,
+        href: null,
     },
     {
         title: 'Paiements et commissions',
         description: 'Consulter les transactions.',
         icon: CreditCard,
+        href: null,
     },
     {
         title: 'Litiges et signalements',
         description: 'Examiner les problèmes signalés.',
         icon: AlertTriangle,
+        href: null,
     },
 ];
 
@@ -160,12 +167,8 @@ export default function AdminDashboard() {
                     <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                         {managementItems.map((item) => {
                             const Icon = item.icon;
-
-                            return (
-                                <div
-                                    key={item.title}
-                                    className="rounded-xl border bg-card p-5"
-                                >
+                            const cardContent = (
+                                <>
                                     <div className="flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
                                         <Icon className="size-5" />
                                     </div>
@@ -177,6 +180,23 @@ export default function AdminDashboard() {
                                     <p className="mt-2 text-sm text-muted-foreground">
                                         {item.description}
                                     </p>
+                                </>
+                            );
+
+                            return item.href ? (
+                                <Link
+                                    key={item.title}
+                                    href={item.href}
+                                    className="rounded-xl border bg-card p-5 transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                                >
+                                    {cardContent}
+                                </Link>
+                            ) : (
+                                <div
+                                    key={item.title}
+                                    className="rounded-xl border bg-card p-5"
+                                >
+                                    {cardContent}
                                 </div>
                             );
                         })}

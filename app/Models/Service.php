@@ -37,14 +37,15 @@ class Service extends Model
     }
 
     /**
-     * @return BelongsToMany<ProviderProfile, $this>
+     * @return BelongsToMany<ProviderProfile, $this, ProviderProfileService>
      */
     public function providerProfiles(): BelongsToMany
     {
         return $this->belongsToMany(
             ProviderProfile::class,
             'provider_profile_service'
-        )->withPivot(['price', 'is_active'])
+        )->using(ProviderProfileService::class)
+            ->withPivot(['price', 'is_active'])
             ->withTimestamps();
     }
 }

@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\Category;
+use App\Models\Service;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -65,7 +67,7 @@ test('providers can select services for their profile', function () {
         'email_verified_at' => now(),
     ])->save();
 
-    $category = \App\Models\Category::create([
+    $category = Category::create([
         'name' => 'Plomberie',
         'slug' => 'plomberie',
         'description' => 'Services de plomberie.',
@@ -73,7 +75,7 @@ test('providers can select services for their profile', function () {
         'is_active' => true,
     ]);
 
-    $service = \App\Models\Service::create([
+    $service = Service::create([
         'category_id' => $category->id,
         'name' => 'Réparation de robinet',
         'slug' => 'reparation-robinet',

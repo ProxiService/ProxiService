@@ -1,5 +1,6 @@
-import { Head } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
 import {
+    ArrowRight,
     CalendarClock,
     CheckCircle2,
     ClipboardList,
@@ -8,6 +9,8 @@ import {
     Star,
     Wrench,
 } from 'lucide-react';
+import { edit as editProviderProfile } from '@/routes/prestataire/profile';
+import { index as providerRequests } from '@/routes/prestataire/requests';
 
 const stats = [
     {
@@ -58,7 +61,7 @@ export default function PrestataireDashboard() {
                 </header>
 
                 <section className="rounded-2xl bg-primary p-6 text-primary-foreground md:p-8">
-                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
                         <div>
                             <div className="flex items-center gap-2 text-sm opacity-90">
                                 <Wrench className="size-4" />
@@ -76,9 +79,41 @@ export default function PrestataireDashboard() {
                             </p>
                         </div>
 
-                        <div className="flex size-16 shrink-0 items-center justify-center rounded-2xl bg-white/15">
-                            <Wrench className="size-8" />
+                        <div className="flex shrink-0 flex-col items-start gap-4 sm:items-end">
+                            <div className="flex size-16 items-center justify-center rounded-2xl bg-white/15">
+                                <Wrench className="size-8" />
+                            </div>
+
+                            <Link
+                                href={editProviderProfile()}
+                                className="inline-flex items-center gap-2 rounded-lg bg-background px-4 py-2.5 text-sm font-semibold text-foreground shadow-sm transition-colors hover:bg-background/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-primary focus-visible:outline-none"
+                            >
+                                Compléter mon profil
+                                <ArrowRight className="size-4" />
+                            </Link>
                         </div>
+                    </div>
+                </section>
+
+                <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                                Demandes reçues
+                            </h2>
+
+                            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                                Consulte les demandes de tes clients et accepte
+                                ou refuse celles que tu peux réaliser.
+                            </p>
+                        </div>
+
+                        <Link
+                            href={providerRequests()}
+                            className="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
+                        >
+                            Mes demandes
+                        </Link>
                     </div>
                 </section>
 
