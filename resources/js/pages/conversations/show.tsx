@@ -118,7 +118,7 @@ export default function ConversationShow({
                                 <UserRound className="mt-0.5 size-5 shrink-0 text-gray-400" />
 
                                 <div>
-                                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                                    <p className="text-xs font-medium tracking-wide text-gray-500 uppercase">
                                         Client
                                     </p>
 
@@ -132,7 +132,7 @@ export default function ConversationShow({
                                 <Wrench className="mt-0.5 size-5 shrink-0 text-gray-400" />
 
                                 <div>
-                                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                                    <p className="text-xs font-medium tracking-wide text-gray-500 uppercase">
                                         Prestataire
                                     </p>
 
@@ -146,7 +146,7 @@ export default function ConversationShow({
                                 <MapPin className="mt-0.5 size-5 shrink-0 text-gray-400" />
 
                                 <div>
-                                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                                    <p className="text-xs font-medium tracking-wide text-gray-500 uppercase">
                                         Lieu d’intervention
                                     </p>
 
@@ -167,7 +167,7 @@ export default function ConversationShow({
                                 <CalendarClock className="mt-0.5 size-5 shrink-0 text-gray-400" />
 
                                 <div>
-                                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                                    <p className="text-xs font-medium tracking-wide text-gray-500 uppercase">
                                         Date prévue
                                     </p>
 
@@ -208,8 +208,8 @@ export default function ConversationShow({
                                     </h3>
 
                                     <p className="mt-1 max-w-sm text-sm leading-6 text-gray-500">
-                                        Envoie le premier message pour
-                                        commencer à organiser la prestation.
+                                        Envoie le premier message pour commencer
+                                        à organiser la prestation.
                                     </p>
                                 </div>
                             ) : (
@@ -246,7 +246,7 @@ export default function ConversationShow({
                                                             : 'rounded-bl-md border border-gray-200 bg-white text-gray-800'
                                                     }`}
                                                 >
-                                                    <p className="whitespace-pre-wrap break-words text-sm leading-6">
+                                                    <p className="text-sm leading-6 break-words whitespace-pre-wrap">
                                                         {message.body}
                                                     </p>
                                                 </div>
@@ -280,10 +280,7 @@ export default function ConversationShow({
                                     id="message-body"
                                     value={form.data.body}
                                     onChange={(event) =>
-                                        form.setData(
-                                            'body',
-                                            event.target.value,
-                                        )
+                                        form.setData('body', event.target.value)
                                     }
                                     placeholder="Écris ton message ici..."
                                     rows={4}
@@ -291,7 +288,7 @@ export default function ConversationShow({
                                     required
                                     disabled={form.processing}
                                     aria-describedby="message-help"
-                                    className="w-full resize-y rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 disabled:cursor-not-allowed disabled:bg-gray-100"
+                                    className="w-full resize-y rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 transition outline-none placeholder:text-gray-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 disabled:cursor-not-allowed disabled:bg-gray-100"
                                 />
 
                                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

@@ -1,5 +1,9 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, router, useForm } from '@inertiajs/react';
+import { useState } from 'react';
+import type { FormEvent } from 'react';
+import { confirmCompletion as confirmServiceCompletion } from '@/routes/client/requests';
 import { show as clientConversation } from '@/routes/client/requests/messages';
+import { store as storeServiceReview } from '@/routes/client/requests/review';
 import { providers as serviceProviders } from '@/routes/client/services';
 import {
     AlertTriangle,
@@ -7,6 +11,7 @@ import {
     CheckCircle2,
     Clock3,
     MapPin,
+    Star,
     UserRound,
     Wrench,
     XCircle,
@@ -22,6 +27,10 @@ type ServiceRequestItem = {
     is_urgent: boolean;
     status: string;
     created_at: string | null;
+    review: {
+        rating: number;
+        comment: string | null;
+    } | null;
     service: {
         name: string;
         slug: string;
@@ -54,12 +63,18 @@ type PageProps = {
 const statusLabels: Record<string, string> = {
     pending: 'En attente',
     accepted: 'Acceptée',
+    in_progress: 'En cours',
+    awaiting_confirmation: 'À confirmer',
+    completed: 'Terminée',
     rejected: 'Refusée',
 };
 
 const statusClasses: Record<string, string> = {
     pending: 'bg-amber-100 text-amber-800',
     accepted: 'bg-emerald-100 text-emerald-800',
+    in_progress: 'bg-blue-100 text-blue-800',
+    awaiting_confirmation: 'bg-purple-100 text-purple-800',
+    completed: 'bg-emerald-100 text-emerald-800',
     rejected: 'bg-red-100 text-red-800',
 };
 
@@ -75,7 +90,135 @@ function formatPaginationLabel(label: string): string {
     return label.replace('&laquo;', '«').replace('&raquo;', '»');
 }
 
+function ReviewForm({ requestId }: { requestId: number }) {
+    const form = useForm({
+        rating: 5,
+        comment: '',
+    });
+
+    function submitReview(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+
+        form.post(storeServiceReview.url(requestId), {
+            preserveScroll: true,
+            onSuccess: () => form.reset(),
+        });
+    }
+
+    return (
+        <form onSubmit={submitReview} className="space-y-4">
+            <div>
+                <h3 className="text-base font-semibold text-gray-900">
+                    Évalue cette prestation
+                </h3>
+
+                <p className="mt-1 text-sm text-gray-600">
+                    Ton avis aidera les autres clients à choisir un prestataire.
+                </p>
+            </div>
+
+            <fieldset>
+                <legend className="mb-2 text-sm font-medium text-gray-800">
+                    Ta note
+                </legend>
+
+                <div className="flex items-center gap-1">
+                    {[1, 2, 3, 4, 5].map((value) => (
+                        <button
+                            key={value}
+                            type="button"
+                            aria-label={`Donner ${value} étoile${value > 1 ? 's' : ''}`}
+                            aria-pressed={form.data.rating === value}
+                            onClick={() => form.setData('rating', value)}
+                            className="rounded-md p-1 transition hover:bg-amber-50 focus:ring-2 focus:ring-amber-400 focus:outline-none"
+                        >
+                            <Star
+                                className={`size-7 ${
+                                    value <= form.data.rating
+                                        ? 'fill-amber-400 text-amber-400'
+                                        : 'text-gray-300'
+                                }`}
+                            />
+                        </button>
+                    ))}
+                </div>
+
+                {form.errors.rating && (
+                    <p role="alert" className="mt-1 text-sm text-red-600">
+                        {form.errors.rating}
+                    </p>
+                )}
+            </fieldset>
+
+            <div>
+                <label
+                    htmlFor={`review-comment-${requestId}`}
+                    className="mb-2 block text-sm font-medium text-gray-800"
+                >
+                    Commentaire (facultatif)
+                </label>
+
+                <textarea
+                    id={`review-comment-${requestId}`}
+                    value={form.data.comment}
+                    onChange={(event) =>
+                        form.setData('comment', event.target.value)
+                    }
+                    rows={3}
+                    maxLength={2000}
+                    placeholder="Comment s'est déroulée la prestation ?"
+                    disabled={form.processing}
+                    className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 disabled:bg-gray-100"
+                />
+
+                {form.errors.comment && (
+                    <p role="alert" className="mt-1 text-sm text-red-600">
+                        {form.errors.comment}
+                    </p>
+                )}
+
+                <p className="mt-1 text-xs text-gray-500">
+                    {form.data.comment.length}/2000 caractères
+                </p>
+            </div>
+
+            <button
+                type="submit"
+                disabled={form.processing}
+                className="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+                {form.processing ? 'Envoi en cours...' : 'Publier mon avis'}
+            </button>
+        </form>
+    );
+}
+
 export default function MyServiceRequestsIndex({ requests }: PageProps) {
+    const [processingRequestId, setProcessingRequestId] = useState<
+        number | null
+    >(null);
+
+    function confirmCompletion(requestId: number) {
+        if (
+            !window.confirm(
+                'Confirmes-tu que la prestation a bien été terminée ?',
+            )
+        ) {
+            return;
+        }
+
+        setProcessingRequestId(requestId);
+
+        router.patch(
+            confirmServiceCompletion.url(requestId),
+            {},
+            {
+                preserveScroll: true,
+                onFinish: () => setProcessingRequestId(null),
+            },
+        );
+    }
+
     return (
         <>
             <Head title="Mes demandes envoyées" />
@@ -290,11 +433,17 @@ export default function MyServiceRequestsIndex({ requests }: PageProps) {
                                                             ? 'Le prestataire doit encore répondre.'
                                                             : serviceRequest.status ===
                                                                 'accepted'
-                                                              ? 'Le prestataire a accepté ta demande. Vous pouvez convenir des détails de l’intervention.'
+                                                              ? 'Le prestataire a accepté ta demande. L’intervention peut être organisée.'
                                                               : serviceRequest.status ===
-                                                                  'rejected'
-                                                                ? 'Le prestataire a refusé cette demande. Tu peux rechercher un autre prestataire.'
-                                                                : 'Consulte régulièrement cette page pour suivre ta demande.'}
+                                                                  'in_progress'
+                                                                ? 'Le prestataire a commencé l’intervention.'
+                                                                : serviceRequest.status ===
+                                                                    'awaiting_confirmation'
+                                                                  ? 'Le prestataire signale que le travail est terminé. Vérifie la prestation avant de la confirmer.'
+                                                                  : serviceRequest.status ===
+                                                                      'completed'
+                                                                    ? 'Tu as confirmé que la prestation est terminée.'
+                                                                    : 'Le prestataire a refusé cette demande. Tu peux en rechercher un autre.'}
                                                     </p>
                                                 </div>
                                             </div>
@@ -314,8 +463,14 @@ export default function MyServiceRequestsIndex({ requests }: PageProps) {
                                                 </span>
                                             </Link>
 
-                                            {serviceRequest.status ===
-                                                'accepted' && (
+                                            {[
+                                                'accepted',
+                                                'in_progress',
+                                                'awaiting_confirmation',
+                                                'completed',
+                                            ].includes(
+                                                serviceRequest.status,
+                                            ) && (
                                                 <Link
                                                     href={clientConversation.url(
                                                         serviceRequest.id,
@@ -325,8 +480,90 @@ export default function MyServiceRequestsIndex({ requests }: PageProps) {
                                                     Ouvrir la conversation
                                                 </Link>
                                             )}
+
+                                            {serviceRequest.status ===
+                                                'awaiting_confirmation' && (
+                                                <button
+                                                    type="button"
+                                                    disabled={
+                                                        processingRequestId !==
+                                                        null
+                                                    }
+                                                    onClick={() =>
+                                                        confirmCompletion(
+                                                            serviceRequest.id,
+                                                        )
+                                                    }
+                                                    className="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                                >
+                                                    {processingRequestId ===
+                                                    serviceRequest.id
+                                                        ? 'Confirmation...'
+                                                        : 'Confirmer la prestation'}
+                                                </button>
+                                            )}
                                         </div>
                                     </div>
+
+                                    {serviceRequest.status === 'completed' && (
+                                        <div className="border-t border-gray-100 bg-white px-5 py-5 sm:px-6">
+                                            {serviceRequest.review ? (
+                                                <div>
+                                                    <h3 className="text-base font-semibold text-gray-900">
+                                                        Ton avis
+                                                    </h3>
+
+                                                    <div
+                                                        className="mt-2 flex items-center gap-1"
+                                                        aria-label={`Note : ${serviceRequest.review.rating} sur 5`}
+                                                    >
+                                                        {[1, 2, 3, 4, 5].map(
+                                                            (value) => (
+                                                                <Star
+                                                                    key={value}
+                                                                    className={`size-5 ${
+                                                                        value <=
+                                                                        (serviceRequest
+                                                                            .review
+                                                                            ?.rating ??
+                                                                            0)
+                                                                            ? 'fill-amber-400 text-amber-400'
+                                                                            : 'text-gray-300'
+                                                                    }`}
+                                                                />
+                                                            ),
+                                                        )}
+
+                                                        <span className="ml-2 text-sm font-semibold text-gray-700">
+                                                            {
+                                                                serviceRequest
+                                                                    .review
+                                                                    .rating
+                                                            }
+                                                            /5
+                                                        </span>
+                                                    </div>
+
+                                                    {serviceRequest.review
+                                                        .comment && (
+                                                        <p className="mt-3 text-sm leading-6 whitespace-pre-wrap text-gray-600">
+                                                            {
+                                                                serviceRequest
+                                                                    .review
+                                                                    .comment
+                                                            }
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <ReviewForm
+                                                    requestId={
+                                                        serviceRequest.id
+                                                    }
+                                                />
+                                            )}
+                                        </div>
+                                    )}
                                 </article>
                             ))}
                         </div>

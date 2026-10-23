@@ -104,7 +104,7 @@ class ServiceRequestConversationController extends Controller
     }
 
     /**
-     * Autoriser uniquement les deux participants d'une demande acceptée.
+     * Autoriser uniquement les participants pendant le cycle actif de la prestation.
      */
     private function ensureCanAccess(
         Request $request,
@@ -123,9 +123,19 @@ class ServiceRequestConversationController extends Controller
             && (int) $serviceRequest->provider_profile_id
                 === (int) $providerProfile->id;
 
+        $chatAvailable = in_array(
+            $serviceRequest->status,
+            [
+                'accepted',
+                'in_progress',
+                'awaiting_confirmation',
+                'completed',
+            ],
+            true,
+        );
+
         abort_unless(
-            ($isClient || $isProvider)
-            && $serviceRequest->status === 'accepted',
+            ($isClient || $isProvider) && $chatAvailable,
             404,
             'Conversation introuvable.',
         );

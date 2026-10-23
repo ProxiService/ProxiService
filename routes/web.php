@@ -8,6 +8,7 @@ use App\Http\Controllers\Client\ProviderDetailController;
 use App\Http\Controllers\Client\SearchController;
 use App\Http\Controllers\Client\ServiceProviderController;
 use App\Http\Controllers\Client\ServiceRequestController;
+use App\Http\Controllers\Client\ServiceReviewController;
 use App\Http\Controllers\Prestataire\ProviderProfileController;
 use App\Http\Controllers\Prestataire\ServiceRequestController as PrestataireServiceRequestController;
 use App\Http\Controllers\ServiceRequestConversationController;
@@ -109,6 +110,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 'services/{service:slug}/providers/{providerProfile}/request',
                 [ServiceRequestController::class, 'store']
             )->name('services.providers.request.store');
+
+            Route::post(
+                'requests/{serviceRequest}/review',
+                [ServiceReviewController::class, 'store'],
+            )->name('requests.review.store');
+
+            Route::patch(
+                'requests/{serviceRequest}/confirm-completion',
+                [ServiceRequestController::class, 'confirmCompletion'],
+            )->name('requests.confirm-completion');
         });
     /*
     |--------------------------------------------------------------------------
@@ -151,6 +162,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 PrestataireServiceRequestController::class,
                 'reject',
             ])->name('requests.reject');
+
+            Route::patch(
+                'requests/{serviceRequest}/start',
+                [PrestataireServiceRequestController::class, 'start'],
+            )->name('requests.start');
+
+            Route::patch(
+                'requests/{serviceRequest}/finish',
+                [PrestataireServiceRequestController::class, 'finish'],
+            )->name('requests.finish');
         });
 
     /*

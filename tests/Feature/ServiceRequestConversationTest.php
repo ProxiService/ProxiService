@@ -123,6 +123,49 @@ test('le prestataire associé peut consulter la même conversation', function ()
         );
 });
 
+test('les participants peuvent continuer à échanger pendant et après la prestation', function (
+    string $status,
+) {
+    $fixture = createConversationMessagingFixture($status);
+
+    $this->actingAs($fixture['client'])
+        ->get(route(
+            'client.requests.messages.show',
+            $fixture['serviceRequest'],
+        ))
+        ->assertOk();
+
+    $this->actingAs($fixture['provider'])
+        ->get(route(
+            'prestataire.requests.messages.show',
+            $fixture['serviceRequest'],
+        ))
+        ->assertOk();
+
+    $this->actingAs($fixture['client'])
+        ->post(
+            route(
+                'client.requests.messages.store',
+                $fixture['serviceRequest'],
+            ),
+            ['body' => 'Je confirme notre échange pendant la prestation.'],
+        )
+        ->assertRedirect(route(
+            'client.requests.messages.show',
+            $fixture['serviceRequest'],
+        ));
+
+    $this->assertDatabaseHas('service_request_messages', [
+        'service_request_id' => $fixture['serviceRequest']->id,
+        'sender_id' => $fixture['client']->id,
+        'body' => 'Je confirme notre échange pendant la prestation.',
+    ]);
+})->with([
+    'intervention en cours' => 'in_progress',
+    'en attente de confirmation' => 'awaiting_confirmation',
+    'prestation terminée' => 'completed',
+]);
+
 test('un participant peut envoyer un message et son identité est définie par le serveur', function () {
     $fixture = createConversationMessagingFixture();
 
@@ -160,7 +203,7 @@ test('un participant peut envoyer un message et son identité est définie par l
 });
 
 test('un autre client ne peut ni lire ni envoyer des messages dans cette conversation', function () {
-    $fixture = createConversationMessagingFixture();
+    $fixture = createConversationMessagingFixture('in_progress');
 
     $otherClient = User::factory()->create([
         'role' => 'client',

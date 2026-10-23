@@ -21,6 +21,7 @@ class MyServiceRequestsController extends Controller
                 'service:id,name,slug',
                 'providerProfile:id,user_id,business_name,city,neighborhood',
                 'providerProfile.user:id,name',
+                'review:id,service_request_id,rating,comment',
             ])
             ->latest()
             ->paginate(10)
@@ -37,6 +38,12 @@ class MyServiceRequestsController extends Controller
                     'status' => $serviceRequest->status,
                     'created_at' => $serviceRequest->created_at
                         ?->format('d/m/Y H:i'),
+                    'review' => $serviceRequest->review
+                        ? [
+                            'rating' => $serviceRequest->review->rating,
+                            'comment' => $serviceRequest->review->comment,
+                        ]
+                        : null,
 
                     'service' => [
                         'name' => $serviceRequest->service->name,

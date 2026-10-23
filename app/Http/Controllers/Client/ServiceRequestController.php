@@ -124,4 +124,34 @@ class ServiceRequestController extends Controller
         return to_route('client.dashboard')
             ->with('success', 'Votre demande a été envoyée au prestataire.');
     }
+
+    /**
+     * Confirmer que la prestation est terminée.
+     */
+    public function confirmCompletion(
+        Request $request,
+        ServiceRequestModel $serviceRequest,
+    ): RedirectResponse {
+        abort_unless(
+            (int) $serviceRequest->client_id === (int) $request->user()->id,
+            404,
+            'Demande introuvable.',
+        );
+
+        abort_unless(
+            $serviceRequest->status === 'awaiting_confirmation',
+            409,
+            'Cette demande ne peut pas être confirmée dans son état actuel.',
+        );
+
+        $serviceRequest->status = 'completed';
+        $serviceRequest->save();
+
+        return redirect()
+            ->route('client.requests.index')
+            ->with(
+                'success',
+                'La fin de la prestation a été confirmée.',
+            );
+    }
 }

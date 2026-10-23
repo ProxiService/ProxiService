@@ -1,6 +1,10 @@
 import { Head, Link, router } from '@inertiajs/react';
 import { show as providerConversation } from '@/routes/prestataire/requests/messages';
 import {
+    finish as finishServiceRequest,
+    start as startServiceRequest,
+} from '@/routes/prestataire/requests';
+import {
     AlertTriangle,
     CalendarClock,
     CheckCircle2,
@@ -52,12 +56,18 @@ type PageProps = {
 const statusLabels: Record<string, string> = {
     pending: 'En attente',
     accepted: 'Acceptée',
+    in_progress: 'En cours',
+    awaiting_confirmation: 'À confirmer par le client',
+    completed: 'Terminée',
     rejected: 'Refusée',
 };
 
 const statusClasses: Record<string, string> = {
     pending: 'bg-amber-100 text-amber-800',
     accepted: 'bg-emerald-100 text-emerald-800',
+    in_progress: 'bg-blue-100 text-blue-800',
+    awaiting_confirmation: 'bg-purple-100 text-purple-800',
+    completed: 'bg-emerald-100 text-emerald-800',
     rejected: 'bg-red-100 text-red-800',
 };
 
@@ -99,6 +109,34 @@ export default function ProviderRequestsIndex({ requests }: PageProps) {
                 onFinish: () => {
                     setProcessingRequestId(null);
                 },
+            },
+        );
+    }
+
+    function handleLifecycleAction(
+        requestId: number,
+        action: 'start' | 'finish',
+    ) {
+        const message =
+            action === 'start'
+                ? 'Confirmer le démarrage de cette intervention ?'
+                : 'Signaler que cette intervention est terminée ?';
+
+        if (!window.confirm(message)) {
+            return;
+        }
+
+        setProcessingRequestId(requestId);
+
+        const lifecycleAction =
+            action === 'start' ? startServiceRequest : finishServiceRequest;
+
+        router.patch(
+            lifecycleAction.url(requestId),
+            {},
+            {
+                preserveScroll: true,
+                onFinish: () => setProcessingRequestId(null),
             },
         );
     }
@@ -309,9 +347,22 @@ export default function ProviderRequestsIndex({ requests }: PageProps) {
                                                         </p>
 
                                                         <p className="mt-1 text-sm font-medium text-gray-900">
-                                                            {isPending
-                                                                ? 'Une action est attendue'
-                                                                : 'Cette demande a déjà été traitée'}
+                                                            {serviceRequest.status ===
+                                                            'pending'
+                                                                ? 'Une réponse est attendue de ta part.'
+                                                                : serviceRequest.status ===
+                                                                    'accepted'
+                                                                  ? 'La demande est acceptée. Tu peux démarrer l’intervention.'
+                                                                  : serviceRequest.status ===
+                                                                      'in_progress'
+                                                                    ? 'L’intervention est en cours.'
+                                                                    : serviceRequest.status ===
+                                                                        'awaiting_confirmation'
+                                                                      ? 'Le client doit confirmer la fin de la prestation.'
+                                                                      : serviceRequest.status ===
+                                                                          'completed'
+                                                                        ? 'La prestation est terminée.'
+                                                                        : 'Cette demande a été refusée.'}
                                                         </p>
                                                     </div>
                                                 </div>
@@ -359,8 +410,76 @@ export default function ProviderRequestsIndex({ requests }: PageProps) {
                                             </div>
                                         )}
 
+                                        {[
+                                            'accepted',
+                                            'in_progress',
+                                            'awaiting_confirmation',
+                                            'completed',
+                                        ].includes(serviceRequest.status) && (
+                                            <div className="border-t border-gray-100 bg-gray-50 px-5 py-4 sm:px-6">
+                                                <button
+                                                    type="button"
+                                                    disabled={
+                                                        processingRequestId !==
+                                                        null
+                                                    }
+                                                    onClick={() =>
+                                                        handleLifecycleAction(
+                                                            serviceRequest.id,
+                                                            'start',
+                                                        )
+                                                    }
+                                                    className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                                >
+                                                    {processingRequestId ===
+                                                    serviceRequest.id
+                                                        ? 'Traitement...'
+                                                        : "Commencer l'intervention"}
+                                                </button>
+                                            </div>
+                                        )}
+
                                         {serviceRequest.status ===
-                                            'accepted' && (
+                                            'in_progress' && (
+                                            <div className="border-t border-gray-100 bg-gray-50 px-5 py-4 sm:px-6">
+                                                <button
+                                                    type="button"
+                                                    disabled={
+                                                        processingRequestId !==
+                                                        null
+                                                    }
+                                                    onClick={() =>
+                                                        handleLifecycleAction(
+                                                            serviceRequest.id,
+                                                            'finish',
+                                                        )
+                                                    }
+                                                    className="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                                >
+                                                    {processingRequestId ===
+                                                    serviceRequest.id
+                                                        ? 'Traitement...'
+                                                        : "Signaler la fin de l'intervention"}
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        {serviceRequest.status ===
+                                            'awaiting_confirmation' && (
+                                            <div className="border-t border-gray-100 bg-purple-50 px-5 py-4 text-sm text-purple-900 sm:px-6">
+                                                L'intervention est terminée
+                                                selon ta déclaration. La
+                                                prestation attend maintenant la
+                                                confirmation du client.
+                                            </div>
+                                        )}
+
+                                        {[
+                                            'accepted',
+                                            'in_progress',
+                                            'awaiting_confirmation',
+                                            'completed',
+                                        ].includes(serviceRequest.status) && (
                                             <div className="border-t border-gray-100 bg-gray-50 px-5 py-4 sm:px-6">
                                                 <Link
                                                     href={providerConversation.url(

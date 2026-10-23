@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Client;
 use App\Http\Controllers\Controller;
 use App\Models\ProviderProfile;
 use App\Models\Service;
+use App\Models\ServiceReview;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -34,9 +35,31 @@ class ProviderDetailController extends Controller
             ->wherePivot('is_active', true)
             ->first();
 
-        abort_unless($offeredService, 404);
+        abort_unless($offeredService !== null, 404);
 
         $providerProfile->load('user:id,name');
+
+        $reviewCount = $providerProfile->reviews()->count();
+        $averageRating = $providerProfile->reviews()->avg('rating');
+
+        $reviews = $providerProfile->reviews()
+            ->with([
+                'client:id,name',
+                'serviceRequest:id,service_id',
+                'serviceRequest.service:id,name',
+            ])
+            ->latest()
+            ->limit(5)
+            ->get()
+            ->map(fn (ServiceReview $review): array => [
+                'id' => $review->id,
+                'rating' => (int) $review->rating,
+                'comment' => $review->comment,
+                'created_at' => $review->created_at?->format('d/m/Y'),
+                'client_name' => $review->client->name,
+                'service_name' => $review->serviceRequest->service->name,
+            ])
+            ->values();
 
         return Inertia::render('client/providers/show', [
             'service' => [
@@ -63,6 +86,15 @@ class ProviderDetailController extends Controller
                 'is_available' => $providerProfile->is_available,
                 'price' => $offeredService->pivot->price,
             ],
+
+            'reviewSummary' => [
+                'average' => $averageRating !== null
+                    ? round((float) $averageRating, 1)
+                    : null,
+                'count' => $reviewCount,
+            ],
+
+            'reviews' => $reviews,
         ]);
     }
 }

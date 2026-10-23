@@ -4,6 +4,7 @@ use App\Models\Category;
 use App\Models\ProviderProfile;
 use App\Models\Service;
 use App\Models\ServiceRequest as ServiceRequestModel;
+use App\Models\ServiceReview;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -117,10 +118,39 @@ test('un client consulte uniquement ses propres demandes', function () {
                 'Artisan Exemple',
             )
             ->where('requests.data.0.status', 'pending')
+            ->where('requests.data.0.review', null)
         );
 
     expect($otherRequest->client_id)
         ->not->toBe($fixture['client']->id);
+});
+
+test('le client reçoit les détails de son avis dans la liste de ses demandes', function () {
+    $fixture = createClientRequestTrackingFixture();
+
+    $fixture['firstRequest']->status = 'completed';
+    $fixture['firstRequest']->save();
+
+    $review = new ServiceReview([
+        'rating' => 4,
+        'comment' => 'Travail sérieux et soigné.',
+    ]);
+    $review->serviceRequest()->associate($fixture['firstRequest']);
+    $review->client()->associate($fixture['client']);
+    $review->providerProfile()->associate($fixture['profile']);
+    $review->save();
+
+    $this->actingAs($fixture['client'])
+        ->get(route('client.requests.index'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('client/requests/index')
+            ->where('requests.data.0.review.rating', 4)
+            ->where(
+                'requests.data.0.review.comment',
+                'Travail sérieux et soigné.',
+            )
+        );
 });
 
 test('un visiteur non connecté ne peut pas consulter ses demandes', function () {

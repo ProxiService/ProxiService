@@ -16,10 +16,10 @@ class ServiceRequestController extends Controller
      */
     public function index(Request $request): Response
     {
-        $providerProfile = $request->user()->providerProfile;
+        $providerProfileId = $request->user()->providerProfile()->value('id');
 
         $requests = ServiceRequestModel::query()
-            ->where('provider_profile_id', $providerProfile?->id ?? 0)
+            ->where('provider_profile_id', $providerProfileId ?? 0)
             ->with([
                 'client:id,name',
                 'service:id,name,slug',
@@ -115,5 +115,54 @@ class ServiceRequestController extends Controller
             404,
             'Demande introuvable.',
         );
+    }
+
+    /**
+     * Indiquer que l'intervention a commencé.
+     */
+    public function start(
+        Request $request,
+        ServiceRequestModel $serviceRequest,
+    ): RedirectResponse {
+        $this->ensureOwnRequest($request, $serviceRequest);
+
+        abort_unless(
+            $serviceRequest->status === 'accepted',
+            409,
+            'Cette demande ne peut pas être démarrée dans son état actuel.',
+        );
+
+        $serviceRequest->status = 'in_progress';
+        $serviceRequest->save();
+
+        return redirect()
+            ->route('prestataire.requests.index')
+            ->with('success', 'L’intervention a commencé.');
+    }
+
+    /**
+     * Signaler que l'intervention est terminée.
+     */
+    public function finish(
+        Request $request,
+        ServiceRequestModel $serviceRequest,
+    ): RedirectResponse {
+        $this->ensureOwnRequest($request, $serviceRequest);
+
+        abort_unless(
+            $serviceRequest->status === 'in_progress',
+            409,
+            'Seule une intervention en cours peut être terminée.',
+        );
+
+        $serviceRequest->status = 'awaiting_confirmation';
+        $serviceRequest->save();
+
+        return redirect()
+            ->route('prestataire.requests.index')
+            ->with(
+                'success',
+                'La fin de l’intervention a été signalée au client.',
+            );
     }
 }

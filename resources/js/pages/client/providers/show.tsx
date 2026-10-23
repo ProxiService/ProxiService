@@ -6,6 +6,7 @@ import {
     CheckCircle2,
     Clock3,
     MapPin,
+    Star,
     Wrench,
 } from 'lucide-react';
 import { create as createServiceRequest } from '@/routes/client/services/providers/request';
@@ -36,9 +37,25 @@ type Provider = {
     price: string | number | null;
 };
 
+type ProviderReview = {
+    id: number;
+    rating: number;
+    comment: string | null;
+    created_at: string | null;
+    client_name: string;
+    service_name: string;
+};
+
+type ReviewSummary = {
+    average: number | null;
+    count: number;
+};
+
 type Props = {
     service: Service;
     provider: Provider;
+    reviewSummary: ReviewSummary;
+    reviews: ProviderReview[];
 };
 
 function formatPrice(price: string | number): string {
@@ -59,7 +76,12 @@ function getPriceLabel(service: Service, provider: Provider): string {
     return 'Sur devis';
 }
 
-export default function ProviderDetails({ service, provider }: Props) {
+export default function ProviderDetails({
+    service,
+    provider,
+    reviewSummary,
+    reviews,
+}: Props) {
     return (
         <>
             <Head
@@ -176,6 +198,108 @@ export default function ProviderDetails({ service, provider }: Props) {
                             Expérience déclarée par le professionnel.
                         </p>
                     </div>
+                </section>
+
+                <section className="mt-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6 dark:border-gray-800 dark:bg-card">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <h2 className="text-xl font-bold text-gray-900 dark:text-foreground">
+                                Avis des clients
+                            </h2>
+
+                            <p className="mt-1 text-sm text-gray-500 dark:text-muted-foreground">
+                                Consulte les retours des clients ayant utilisé
+                                les services de ce prestataire.
+                            </p>
+                        </div>
+
+                        <div className="rounded-xl bg-amber-50 px-4 py-3 dark:bg-amber-950/30">
+                            <div className="flex items-center gap-2">
+                                <Star className="size-6 fill-amber-400 text-amber-400" />
+
+                                <span className="text-2xl font-bold text-gray-900 dark:text-foreground">
+                                    {reviewSummary.average !== null
+                                        ? reviewSummary.average.toFixed(1)
+                                        : '—'}
+                                </span>
+
+                                <span className="text-sm text-gray-500 dark:text-muted-foreground">
+                                    / 5
+                                </span>
+                            </div>
+
+                            <p className="mt-1 text-xs text-gray-600 dark:text-muted-foreground">
+                                {reviewSummary.count} avis
+                            </p>
+                        </div>
+                    </div>
+
+                    {reviews.length === 0 ? (
+                        <div className="mt-6 rounded-xl border border-dashed border-gray-200 px-4 py-8 text-center dark:border-gray-700">
+                            <p className="font-medium text-gray-800 dark:text-foreground">
+                                Aucun avis pour le moment
+                            </p>
+
+                            <p className="mt-1 text-sm text-gray-500 dark:text-muted-foreground">
+                                Les avis des clients apparaîtront ici après
+                                leurs prestations.
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="mt-6 divide-y divide-gray-100 dark:divide-gray-800">
+                            {reviews.map((review) => (
+                                <article
+                                    key={review.id}
+                                    className="py-5 first:pt-0 last:pb-0"
+                                >
+                                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                        <div>
+                                            <h3 className="font-semibold text-gray-900 dark:text-foreground">
+                                                {review.client_name}
+                                            </h3>
+
+                                            <p className="mt-1 text-xs text-gray-500 dark:text-muted-foreground">
+                                                Prestation :{' '}
+                                                {review.service_name}
+                                            </p>
+                                        </div>
+
+                                        {review.created_at && (
+                                            <span className="text-xs text-gray-500 dark:text-muted-foreground">
+                                                {review.created_at}
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    <div
+                                        className="mt-3 flex items-center gap-1"
+                                        aria-label={`Note de ${review.rating} sur 5`}
+                                    >
+                                        {[1, 2, 3, 4, 5].map((value) => (
+                                            <Star
+                                                key={value}
+                                                className={`size-4 ${
+                                                    value <= review.rating
+                                                        ? 'fill-amber-400 text-amber-400'
+                                                        : 'text-gray-300'
+                                                }`}
+                                            />
+                                        ))}
+
+                                        <span className="ml-2 text-sm font-semibold text-gray-700 dark:text-foreground">
+                                            {review.rating}/5
+                                        </span>
+                                    </div>
+
+                                    {review.comment && (
+                                        <p className="mt-3 text-sm leading-6 whitespace-pre-wrap text-gray-600 dark:text-muted-foreground">
+                                            {review.comment}
+                                        </p>
+                                    )}
+                                </article>
+                            ))}
+                        </div>
+                    )}
                 </section>
 
                 <section className="rounded-xl border bg-card p-6">
