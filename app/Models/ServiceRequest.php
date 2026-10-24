@@ -64,10 +64,34 @@ class ServiceRequest extends Model
     }
 
     /**
+     * @return HasMany<ServiceQuote, $this>
+     */
+    public function quotes(): HasMany
+    {
+        return $this->hasMany(ServiceQuote::class);
+    }
+
+    /**
+     * @return HasOne<ServiceQuote, $this>
+     */
+    public function acceptedQuote(): HasOne
+    {
+        return $this->hasOne(ServiceQuote::class)->where('status', 'accepted');
+    }
+
+    /**
      * @return HasOne<ServiceReview, $this>
      */
     public function review(): HasOne
     {
         return $this->hasOne(ServiceReview::class);
+    }
+
+    /**
+     * @return HasOne<ServiceCommission, $this>
+     */
+    public function commission(): HasOne
+    {
+        return $this->hasOne(ServiceCommission::class);
     }
 }

@@ -1,5 +1,6 @@
 import { Head, Link } from '@inertiajs/react';
 import NotificationBell from '../../components/NotificationBell';
+import { index as adminCommissions } from '@/routes/admin/commissions';
 import { index as pendingProviders } from '@/routes/admin/providers';
 import { index as reviewReports } from '@/routes/admin/review-reports';
 import {
@@ -69,7 +70,7 @@ const managementItems = [
         title: 'Paiements et commissions',
         description: 'Consulter les transactions.',
         icon: CreditCard,
-        href: null,
+        href: adminCommissions(),
     },
     {
         title: 'Litiges et signalements',

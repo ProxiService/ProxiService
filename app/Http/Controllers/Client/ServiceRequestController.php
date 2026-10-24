@@ -5,10 +5,12 @@ namespace App\Http\Controllers\Client;
 use App\Http\Controllers\Controller;
 use App\Models\ProviderProfile;
 use App\Models\Service;
+use App\Models\ServiceCommission;
 use App\Models\ServiceRequest as ServiceRequestModel;
 use App\Notifications\NewServiceRequestNotification;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -135,32 +137,119 @@ class ServiceRequestController extends Controller
     }
 
     /**
-     * Confirmer que la prestation est terminée.
+     * Confirmer la fin de la prestation et enregistrer sa commission.
      */
     public function confirmCompletion(
         Request $request,
         ServiceRequestModel $serviceRequest,
     ): RedirectResponse {
-        abort_unless(
-            (int) $serviceRequest->client_id === (int) $request->user()->id,
-            404,
-            'Demande introuvable.',
-        );
+        DB::transaction(function () use ($request, $serviceRequest): void {
+            $lockedRequest = ServiceRequestModel::query()
+                ->whereKey($serviceRequest->id)
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        abort_unless(
-            $serviceRequest->status === 'awaiting_confirmation',
-            409,
-            'Cette demande ne peut pas être confirmée dans son état actuel.',
-        );
+            abort_unless(
+                (int) $lockedRequest->client_id === (int) $request->user()->id,
+                404,
+                'Demande introuvable.',
+            );
 
-        $serviceRequest->status = 'completed';
-        $serviceRequest->save();
+            abort_unless(
+                $lockedRequest->status === 'awaiting_confirmation',
+                409,
+                'Cette demande ne peut pas être confirmée dans son état actuel.',
+            );
+
+            abort_if(
+                $lockedRequest->commission()->exists(),
+                409,
+                'La commission de cette prestation a déjà été enregistrée.',
+            );
+
+            $lockedRequest->load([
+                'service',
+                'providerProfile',
+            ]);
+
+            $service = $lockedRequest->service;
+
+            if ($service->pricing_type === 'quote') {
+                $acceptedQuote = $lockedRequest->quotes()
+                    ->where('status', 'accepted')
+                    ->first();
+
+                abort_unless(
+                    $acceptedQuote !== null,
+                    409,
+                    'Aucun devis accepté ne permet de calculer la commission.',
+                );
+
+                $grossAmount = (float) $acceptedQuote->amount;
+            } else {
+                $providerService = $lockedRequest->providerProfile
+                    ->services()
+                    ->where('services.id', $service->id)
+                    ->first();
+
+                $grossAmount = $providerService?->pivot?->price;
+
+                if ($grossAmount === null) {
+                    $grossAmount = $service->base_price;
+                }
+
+                abort_unless(
+                    is_numeric($grossAmount) && (float) $grossAmount > 0,
+                    409,
+                    'Aucun prix valide n’est disponible pour calculer la commission.',
+                );
+
+                $grossAmount = (float) $grossAmount;
+            }
+
+            $commissionRate = (float) config(
+                'proxiservices.commission_rate',
+                10.0,
+            );
+
+            abort_if(
+                ! is_finite($commissionRate)
+                    || $commissionRate < 0
+                    || $commissionRate > 100,
+                500,
+                'Le taux de commission configuré est invalide.',
+            );
+
+            $commissionAmount = round(
+                $grossAmount * $commissionRate / 100,
+                2,
+            );
+
+            $providerAmount = round(
+                $grossAmount - $commissionAmount,
+                2,
+            );
+
+            $commission = new ServiceCommission([
+                'gross_amount' => $grossAmount,
+                'commission_rate' => $commissionRate,
+                'commission_amount' => $commissionAmount,
+                'provider_amount' => $providerAmount,
+                'collection_status' => 'pending',
+                'calculated_at' => now(),
+            ]);
+
+            $lockedRequest->commission()->save($commission);
+
+            $lockedRequest->status = 'completed';
+            $lockedRequest->save();
+        });
 
         return redirect()
             ->route('client.requests.index')
             ->with(
                 'success',
-                'La fin de la prestation a été confirmée.',
+                'La prestation est terminée et la commission prévisionnelle a été enregistrée.',
             );
     }
 }

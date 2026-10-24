@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Client;
 
 use App\Http\Controllers\Controller;
+use App\Models\ServiceQuote;
 use App\Models\ServiceRequest as ServiceRequestModel;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -18,7 +19,8 @@ class MyServiceRequestsController extends Controller
         $serviceRequests = ServiceRequestModel::query()
             ->where('client_id', $request->user()->id)
             ->with([
-                'service:id,name,slug',
+                'service:id,name,slug,pricing_type',
+                'quotes:id,service_request_id,amount,description,status,responded_at,created_at',
                 'providerProfile:id,user_id,business_name,city,neighborhood',
                 'providerProfile.user:id,name',
                 'review:id,service_request_id,rating,comment',
@@ -48,7 +50,19 @@ class MyServiceRequestsController extends Controller
                     'service' => [
                         'name' => $serviceRequest->service->name,
                         'slug' => $serviceRequest->service->slug,
+                        'pricing_type' => $serviceRequest->service->pricing_type,
                     ],
+
+                    'quotes' => $serviceRequest->quotes
+                        ->map(fn (ServiceQuote $quote): array => [
+                            'id' => $quote->id,
+                            'amount' => $quote->amount,
+                            'description' => $quote->description,
+                            'status' => $quote->status,
+                            'created_at' => $quote->created_at?->format('d/m/Y H:i'),
+                            'responded_at' => $quote->responded_at?->format('d/m/Y H:i'),
+                        ])
+                        ->values(),
 
                     'provider' => [
                         'name' => $serviceRequest->providerProfile->business_name

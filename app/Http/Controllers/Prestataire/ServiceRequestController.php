@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Prestataire;
 
 use App\Http\Controllers\Controller;
+use App\Models\ServiceQuote;
 use App\Models\ServiceRequest as ServiceRequestModel;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -22,7 +23,8 @@ class ServiceRequestController extends Controller
             ->where('provider_profile_id', $providerProfileId ?? 0)
             ->with([
                 'client:id,name',
-                'service:id,name,slug',
+                'service:id,name,slug,pricing_type',
+                'quotes:id,service_request_id,amount,description,status,responded_at,created_at',
             ])
             ->latest()
             ->paginate(10)
@@ -45,7 +47,18 @@ class ServiceRequestController extends Controller
                     'service' => [
                         'name' => $serviceRequest->service->name,
                         'slug' => $serviceRequest->service->slug,
+                        'pricing_type' => $serviceRequest->service->pricing_type,
                     ],
+                    'quotes' => $serviceRequest->quotes
+                        ->map(fn (ServiceQuote $quote): array => [
+                            'id' => $quote->id,
+                            'amount' => $quote->amount,
+                            'description' => $quote->description,
+                            'status' => $quote->status,
+                            'created_at' => $quote->created_at?->format('d/m/Y H:i'),
+                            'responded_at' => $quote->responded_at?->format('d/m/Y H:i'),
+                        ])
+                        ->values(),
                 ],
             );
 
@@ -125,6 +138,18 @@ class ServiceRequestController extends Controller
         ServiceRequestModel $serviceRequest,
     ): RedirectResponse {
         $this->ensureOwnRequest($request, $serviceRequest);
+
+        if ($serviceRequest->service?->pricing_type === 'quote') {
+            $hasAcceptedQuote = $serviceRequest->quotes()
+                ->where('status', 'accepted')
+                ->exists();
+
+            abort_unless(
+                $hasAcceptedQuote,
+                409,
+                'Un devis accepté est requis avant de démarrer cette intervention.',
+            );
+        }
 
         abort_unless(
             $serviceRequest->status === 'accepted',

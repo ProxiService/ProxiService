@@ -113,6 +113,13 @@ function createProxiServiceRequest(
 test('un prestataire ne voit que ses propres demandes', function () {
     $fixture = createProxiProviderRequestFixture();
 
+    $fixture['serviceRequest']->quotes()->create([
+        'provider_profile_id' => $fixture['profile']->id,
+        'amount' => 12000,
+        'description' => 'Remplacement du robinet et vérification des joints.',
+        'status' => 'pending',
+    ]);
+
     $otherProvider = User::factory()->create([
         'role' => 'prestataire',
         'email_verified_at' => now(),
@@ -141,6 +148,13 @@ test('un prestataire ne voit que ses propres demandes', function () {
                 'requests.data.0.id',
                 $fixture['serviceRequest']->id,
             )
+            ->where('requests.data.0.service.pricing_type', 'quote')
+            ->where('requests.data.0.quotes.0.amount', '12000.00')
+            ->where(
+                'requests.data.0.quotes.0.description',
+                'Remplacement du robinet et vérification des joints.',
+            )
+            ->where('requests.data.0.quotes.0.status', 'pending')
             ->where('requests.data.0.status', 'pending')
         );
 

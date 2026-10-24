@@ -1,9 +1,11 @@
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, Link, router, useForm } from '@inertiajs/react';
 import { show as providerConversation } from '@/routes/prestataire/requests/messages';
+import { store as storeProviderQuote } from '@/routes/prestataire/requests/quotes';
 import {
     finish as finishServiceRequest,
     start as startServiceRequest,
 } from '@/routes/prestataire/requests';
+import type { FormEvent } from 'react';
 import {
     AlertTriangle,
     CalendarClock,
@@ -32,7 +34,18 @@ type ServiceRequestItem = {
     service: {
         name: string;
         slug: string;
+        pricing_type: string;
     };
+    quotes: ServiceQuoteItem[];
+};
+
+type ServiceQuoteItem = {
+    id: number;
+    amount: string | number;
+    description: string;
+    status: 'pending' | 'accepted' | 'rejected' | 'superseded';
+    created_at: string | null;
+    responded_at: string | null;
 };
 
 type PaginationLink = {
@@ -81,6 +94,111 @@ function getStatusClass(status: string): string {
 
 function formatPaginationLabel(label: string): string {
     return label.replace('&laquo;', '«').replace('&raquo;', '»');
+}
+
+function ProviderQuoteForm({ requestId }: { requestId: number }) {
+    const form = useForm({
+        amount: '',
+        description: '',
+    });
+
+    function submitQuote(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+
+        form.transform((data) => ({
+            amount: data.amount,
+            description: data.description.trim(),
+        }));
+
+        form.post(storeProviderQuote.url(requestId), {
+            preserveScroll: true,
+            onSuccess: () => form.reset(),
+        });
+    }
+
+    return (
+        <form onSubmit={submitQuote} className="mt-4 space-y-4">
+            <div>
+                <h4 className="font-semibold text-gray-900">
+                    Proposer un devis
+                </h4>
+
+                <p className="mt-1 text-sm text-gray-600">
+                    Indique le prix total proposé en FCFA et précise les travaux
+                    inclus.
+                </p>
+            </div>
+
+            <div>
+                <label
+                    htmlFor={`quote-amount-${requestId}`}
+                    className="mb-1 block text-sm font-medium text-gray-700"
+                >
+                    Montant (FCFA)
+                </label>
+
+                <input
+                    id={`quote-amount-${requestId}`}
+                    type="number"
+                    min="1"
+                    max="999999999"
+                    step="1"
+                    required
+                    value={form.data.amount}
+                    onChange={(event) =>
+                        form.setData('amount', event.target.value)
+                    }
+                    disabled={form.processing}
+                    placeholder="Ex. 25000"
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-base text-gray-900 outline-none placeholder:text-gray-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 disabled:bg-gray-100"
+                />
+
+                {form.errors.amount && (
+                    <p role="alert" className="mt-1 text-sm text-red-600">
+                        {form.errors.amount}
+                    </p>
+                )}
+            </div>
+
+            <div>
+                <label
+                    htmlFor={`quote-description-${requestId}`}
+                    className="mb-1 block text-sm font-medium text-gray-700"
+                >
+                    Description des travaux
+                </label>
+
+                <textarea
+                    id={`quote-description-${requestId}`}
+                    rows={4}
+                    minLength={10}
+                    maxLength={3000}
+                    required
+                    value={form.data.description}
+                    onChange={(event) =>
+                        form.setData('description', event.target.value)
+                    }
+                    disabled={form.processing}
+                    placeholder="Décris les travaux prévus et ce que le prix comprend."
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-base text-gray-900 outline-none placeholder:text-gray-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 disabled:bg-gray-100"
+                />
+
+                {form.errors.description && (
+                    <p role="alert" className="mt-1 text-sm text-red-600">
+                        {form.errors.description}
+                    </p>
+                )}
+            </div>
+
+            <button
+                type="submit"
+                disabled={form.processing}
+                className="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+                {form.processing ? 'Envoi en cours...' : 'Envoyer le devis'}
+            </button>
+        </form>
+    );
 }
 
 export default function ProviderRequestsIndex({ requests }: PageProps) {
@@ -368,6 +486,124 @@ export default function ProviderRequestsIndex({ requests }: PageProps) {
                                                 </div>
                                             </div>
                                         </div>
+
+                                        {(serviceRequest.service
+                                            .pricing_type === 'quote' ||
+                                            serviceRequest.quotes.length >
+                                                0) && (
+                                            <section className="border-t border-gray-100 px-5 py-5 sm:px-6">
+                                                <h3 className="text-base font-semibold text-gray-900">
+                                                    Devis et prix proposés
+                                                </h3>
+
+                                                {serviceRequest.quotes.length >
+                                                    0 && (
+                                                    <div className="mt-4 space-y-3">
+                                                        {serviceRequest.quotes.map(
+                                                            (quote) => (
+                                                                <div
+                                                                    key={
+                                                                        quote.id
+                                                                    }
+                                                                    className="rounded-xl border border-gray-200 bg-gray-50 p-4"
+                                                                >
+                                                                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                                                        <p className="text-lg font-bold text-gray-900">
+                                                                            {Number(
+                                                                                quote.amount,
+                                                                            ).toLocaleString(
+                                                                                'fr-FR',
+                                                                            )}{' '}
+                                                                            FCFA
+                                                                        </p>
+
+                                                                        <span className="inline-flex w-fit rounded-full bg-white px-3 py-1 text-xs font-semibold text-gray-700">
+                                                                            {{
+                                                                                pending:
+                                                                                    'En attente de réponse',
+                                                                                accepted:
+                                                                                    'Accepté',
+                                                                                rejected:
+                                                                                    'Refusé',
+                                                                                superseded:
+                                                                                    'Remplacé',
+                                                                            }[
+                                                                                quote
+                                                                                    .status
+                                                                            ] ??
+                                                                                quote.status}
+                                                                        </span>
+                                                                    </div>
+
+                                                                    <p className="mt-3 text-sm leading-6 whitespace-pre-wrap text-gray-600">
+                                                                        {
+                                                                            quote.description
+                                                                        }
+                                                                    </p>
+
+                                                                    {quote.created_at && (
+                                                                        <p className="mt-2 text-xs text-gray-400">
+                                                                            Proposé
+                                                                            le{' '}
+                                                                            {
+                                                                                quote.created_at
+                                                                            }
+                                                                        </p>
+                                                                    )}
+                                                                </div>
+                                                            ),
+                                                        )}
+                                                    </div>
+                                                )}
+
+                                                {serviceRequest.status ===
+                                                    'accepted' &&
+                                                    serviceRequest.service
+                                                        .pricing_type ===
+                                                        'quote' &&
+                                                    !serviceRequest.quotes.some(
+                                                        (quote) =>
+                                                            quote.status ===
+                                                                'pending' ||
+                                                            quote.status ===
+                                                                'accepted',
+                                                    ) && (
+                                                        <ProviderQuoteForm
+                                                            requestId={
+                                                                serviceRequest.id
+                                                            }
+                                                        />
+                                                    )}
+
+                                                {serviceRequest.status ===
+                                                    'accepted' &&
+                                                    serviceRequest.quotes.some(
+                                                        (quote) =>
+                                                            quote.status ===
+                                                            'pending',
+                                                    ) && (
+                                                        <p className="mt-4 text-sm text-amber-700">
+                                                            Un devis a été
+                                                            envoyé. Attends la
+                                                            réponse du client
+                                                            avant d'en proposer
+                                                            un autre.
+                                                        </p>
+                                                    )}
+
+                                                {serviceRequest.quotes.some(
+                                                    (quote) =>
+                                                        quote.status ===
+                                                        'accepted',
+                                                ) && (
+                                                    <p className="mt-4 text-sm font-medium text-emerald-700">
+                                                        Le client a accepté un
+                                                        devis. Le montant
+                                                        convenu est enregistré.
+                                                    </p>
+                                                )}
+                                            </section>
+                                        )}
 
                                         {/* Actions */}
                                         {isPending && (

@@ -3,6 +3,7 @@
 use App\Models\Category;
 use App\Models\ProviderProfile;
 use App\Models\Service;
+use App\Models\ServiceQuote;
 use App\Models\ServiceRequest as ServiceRequestModel;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -42,7 +43,8 @@ function createLifecycleProxiFixture(string $status = 'accepted'): array
         'category_id' => $category->id,
         'name' => 'Réparation de robinet',
         'slug' => 'reparation-robinet',
-        'pricing_type' => 'quote',
+        'pricing_type' => 'fixed',
+        'base_price' => 5000,
         'is_active' => true,
     ]);
 
@@ -118,6 +120,21 @@ test('le prestataire peut signaler la fin d’une intervention en cours', functi
 
 test('le client peut confirmer une prestation en attente de confirmation', function () {
     $fixture = createLifecycleProxiFixture('awaiting_confirmation');
+
+    $fixture['service']->pricing_type = 'quote';
+    $fixture['service']->save();
+
+    $quote = new ServiceQuote([
+        'provider_profile_id' => $fixture['profile']->id,
+        'amount' => 25000,
+        'description' => 'Réparation complète et remplacement des pièces.',
+    ]);
+
+    $fixture['serviceRequest']->quotes()->save($quote);
+
+    $quote->status = 'accepted';
+    $quote->responded_at = now();
+    $quote->save();
 
     $this->actingAs($fixture['client'])
         ->patch(route(

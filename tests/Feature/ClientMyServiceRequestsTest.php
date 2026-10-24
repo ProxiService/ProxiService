@@ -92,6 +92,13 @@ function createTrackedServiceRequest(
 test('un client consulte uniquement ses propres demandes', function () {
     $fixture = createClientRequestTrackingFixture();
 
+    $fixture['firstRequest']->quotes()->create([
+        'provider_profile_id' => $fixture['profile']->id,
+        'amount' => 12000,
+        'description' => 'Remplacement du robinet et vérification des joints.',
+        'status' => 'pending',
+    ]);
+
     $otherClient = User::factory()->create([
         'role' => 'client',
         'email_verified_at' => now(),
@@ -118,6 +125,13 @@ test('un client consulte uniquement ses propres demandes', function () {
                 'Artisan Exemple',
             )
             ->where('requests.data.0.status', 'pending')
+            ->where('requests.data.0.service.pricing_type', 'quote')
+            ->where('requests.data.0.quotes.0.amount', '12000.00')
+            ->where(
+                'requests.data.0.quotes.0.description',
+                'Remplacement du robinet et vérification des joints.',
+            )
+            ->where('requests.data.0.quotes.0.status', 'pending')
             ->where('requests.data.0.review', null)
         );
 

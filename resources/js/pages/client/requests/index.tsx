@@ -4,6 +4,10 @@ import type { FormEvent } from 'react';
 import { confirmCompletion as confirmServiceCompletion } from '@/routes/client/requests';
 import { show as clientConversation } from '@/routes/client/requests/messages';
 import { store as storeServiceReview } from '@/routes/client/requests/review';
+import {
+    accept as acceptServiceQuote,
+    reject as rejectServiceQuote,
+} from '@/routes/client/requests/quotes';
 import { providers as serviceProviders } from '@/routes/client/services';
 import {
     AlertTriangle,
@@ -34,12 +38,23 @@ type ServiceRequestItem = {
     service: {
         name: string;
         slug: string;
+        pricing_type: string;
     };
+    quotes: ServiceQuoteItem[];
     provider: {
         name: string;
         city: string | null;
         neighborhood: string | null;
     };
+};
+
+type ServiceQuoteItem = {
+    id: number;
+    amount: string | number;
+    description: string;
+    status: 'pending' | 'accepted' | 'rejected' | 'superseded';
+    created_at: string | null;
+    responded_at: string | null;
 };
 
 type PaginationLink = {
@@ -197,6 +212,9 @@ export default function MyServiceRequestsIndex({ requests }: PageProps) {
     const [processingRequestId, setProcessingRequestId] = useState<
         number | null
     >(null);
+    const [processingQuoteId, setProcessingQuoteId] = useState<number | null>(
+        null,
+    );
 
     function confirmCompletion(requestId: number) {
         if (
@@ -215,6 +233,38 @@ export default function MyServiceRequestsIndex({ requests }: PageProps) {
             {
                 preserveScroll: true,
                 onFinish: () => setProcessingRequestId(null),
+            },
+        );
+    }
+
+    function handleQuoteDecision(
+        requestId: number,
+        quoteId: number,
+        action: 'accept' | 'reject',
+    ) {
+        const message =
+            action === 'accept'
+                ? 'Confirmer l’acceptation de ce devis ?'
+                : 'Confirmer le refus de ce devis ?';
+
+        if (!window.confirm(message) || processingQuoteId !== null) {
+            return;
+        }
+
+        setProcessingQuoteId(quoteId);
+
+        const quoteAction =
+            action === 'accept' ? acceptServiceQuote : rejectServiceQuote;
+
+        router.patch(
+            quoteAction.url({
+                serviceRequest: requestId,
+                serviceQuote: quoteId,
+            }),
+            {},
+            {
+                preserveScroll: true,
+                onFinish: () => setProcessingQuoteId(null),
             },
         );
     }
@@ -448,6 +498,155 @@ export default function MyServiceRequestsIndex({ requests }: PageProps) {
                                                 </div>
                                             </div>
                                         </div>
+
+                                        {serviceRequest.service.pricing_type ===
+                                            'quote' && (
+                                            <section className="border-t border-gray-100 pt-5">
+                                                <h3 className="text-base font-semibold text-gray-900">
+                                                    Devis du prestataire
+                                                </h3>
+
+                                                {serviceRequest.quotes
+                                                    .length === 0 ? (
+                                                    <p className="mt-2 text-sm leading-6 text-gray-600">
+                                                        Aucun devis n'a encore
+                                                        été proposé pour cette
+                                                        prestation.
+                                                    </p>
+                                                ) : (
+                                                    <div className="mt-4 space-y-3">
+                                                        {serviceRequest.quotes.map(
+                                                            (quote) => (
+                                                                <div
+                                                                    key={
+                                                                        quote.id
+                                                                    }
+                                                                    className="rounded-xl border border-gray-200 bg-gray-50 p-4"
+                                                                >
+                                                                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                                                        <p className="text-xl font-bold text-gray-900">
+                                                                            {Number(
+                                                                                quote.amount,
+                                                                            ).toLocaleString(
+                                                                                'fr-FR',
+                                                                            )}{' '}
+                                                                            FCFA
+                                                                        </p>
+
+                                                                        <span
+                                                                            className={`inline-flex w-fit rounded-full px-3 py-1 text-xs font-semibold ${
+                                                                                quote.status ===
+                                                                                'pending'
+                                                                                    ? 'bg-amber-100 text-amber-800'
+                                                                                    : quote.status ===
+                                                                                        'accepted'
+                                                                                      ? 'bg-emerald-100 text-emerald-800'
+                                                                                      : quote.status ===
+                                                                                          'rejected'
+                                                                                        ? 'bg-red-100 text-red-800'
+                                                                                        : 'bg-gray-200 text-gray-700'
+                                                                            }`}
+                                                                        >
+                                                                            {{
+                                                                                pending:
+                                                                                    'En attente de ta réponse',
+                                                                                accepted:
+                                                                                    'Devis accepté',
+                                                                                rejected:
+                                                                                    'Devis refusé',
+                                                                                superseded:
+                                                                                    'Devis remplacé',
+                                                                            }[
+                                                                                quote
+                                                                                    .status
+                                                                            ] ??
+                                                                                quote.status}
+                                                                        </span>
+                                                                    </div>
+
+                                                                    <p className="mt-3 text-sm leading-6 whitespace-pre-wrap text-gray-600">
+                                                                        {
+                                                                            quote.description
+                                                                        }
+                                                                    </p>
+
+                                                                    {quote.created_at && (
+                                                                        <p className="mt-2 text-xs text-gray-400">
+                                                                            Proposé
+                                                                            le{' '}
+                                                                            {
+                                                                                quote.created_at
+                                                                            }
+                                                                        </p>
+                                                                    )}
+
+                                                                    {serviceRequest.status ===
+                                                                        'accepted' &&
+                                                                        quote.status ===
+                                                                            'pending' && (
+                                                                            <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+                                                                                <button
+                                                                                    type="button"
+                                                                                    disabled={
+                                                                                        processingQuoteId !==
+                                                                                        null
+                                                                                    }
+                                                                                    onClick={() =>
+                                                                                        handleQuoteDecision(
+                                                                                            serviceRequest.id,
+                                                                                            quote.id,
+                                                                                            'reject',
+                                                                                        )
+                                                                                    }
+                                                                                    className="inline-flex items-center justify-center rounded-lg border border-red-200 bg-white px-4 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                                                                >
+                                                                                    {processingQuoteId ===
+                                                                                    quote.id
+                                                                                        ? 'Traitement...'
+                                                                                        : 'Refuser le devis'}
+                                                                                </button>
+
+                                                                                <button
+                                                                                    type="button"
+                                                                                    disabled={
+                                                                                        processingQuoteId !==
+                                                                                        null
+                                                                                    }
+                                                                                    onClick={() =>
+                                                                                        handleQuoteDecision(
+                                                                                            serviceRequest.id,
+                                                                                            quote.id,
+                                                                                            'accept',
+                                                                                        )
+                                                                                    }
+                                                                                    className="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                                                                >
+                                                                                    {processingQuoteId ===
+                                                                                    quote.id
+                                                                                        ? 'Traitement...'
+                                                                                        : 'Accepter le devis'}
+                                                                                </button>
+                                                                            </div>
+                                                                        )}
+                                                                </div>
+                                                            ),
+                                                        )}
+                                                    </div>
+                                                )}
+
+                                                {serviceRequest.quotes.some(
+                                                    (quote) =>
+                                                        quote.status ===
+                                                        'accepted',
+                                                ) && (
+                                                    <p className="mt-4 text-sm font-medium text-emerald-700">
+                                                        Le prix de cette
+                                                        prestation a été convenu
+                                                        avec le prestataire.
+                                                    </p>
+                                                )}
+                                            </section>
+                                        )}
 
                                         <div className="flex flex-col gap-3 border-t border-gray-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
                                             <Link

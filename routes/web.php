@@ -2,12 +2,14 @@
 
 use App\Http\Controllers\Admin\ProviderReviewController;
 use App\Http\Controllers\Admin\ReviewReportController as AdminReviewReportController;
+use App\Http\Controllers\Admin\ServiceCommissionController as AdminServiceCommissionController;
 use App\Http\Controllers\Client\CategoryController;
 use App\Http\Controllers\Client\DashboardController;
 use App\Http\Controllers\Client\MyServiceRequestsController;
 use App\Http\Controllers\Client\ProviderDetailController;
 use App\Http\Controllers\Client\SearchController;
 use App\Http\Controllers\Client\ServiceProviderController;
+use App\Http\Controllers\Client\ServiceQuoteController;
 use App\Http\Controllers\Client\ServiceRequestController;
 use App\Http\Controllers\Client\ServiceReviewController;
 use App\Http\Controllers\NotificationController;
@@ -143,6 +145,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 'requests/{serviceRequest}/confirm-completion',
                 [ServiceRequestController::class, 'confirmCompletion'],
             )->name('requests.confirm-completion');
+
+            Route::patch(
+                'requests/{serviceRequest}/quotes/{serviceQuote}/accept',
+                [ServiceQuoteController::class, 'accept'],
+            )->name('requests.quotes.accept');
+
+            Route::patch(
+                'requests/{serviceRequest}/quotes/{serviceQuote}/reject',
+                [ServiceQuoteController::class, 'reject'],
+            )->name('requests.quotes.reject');
         });
     /*
     |--------------------------------------------------------------------------
@@ -210,6 +222,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 'requests/{serviceRequest}/finish',
                 [PrestataireServiceRequestController::class, 'finish'],
             )->name('requests.finish');
+
+            Route::post(
+                'requests/{serviceRequest}/quotes',
+                [App\Http\Controllers\Prestataire\ServiceQuoteController::class, 'store'],
+            )->name('requests.quotes.store');
         });
 
     /*
@@ -269,6 +286,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 AdminReviewReportController::class,
                 'hideReview',
             ])->name('review-reports.hide-review');
+
+            Route::get('commissions', [
+                AdminServiceCommissionController::class,
+                'index',
+            ])->name('commissions.index');
         });
 });
 

@@ -1,11 +1,5 @@
 import { Head, Link, router } from '@inertiajs/react';
-import {
-    Bell,
-    Check,
-    CheckCheck,
-    ExternalLink,
-    Inbox,
-} from 'lucide-react';
+import { Bell, Check, CheckCheck, ExternalLink, Inbox } from 'lucide-react';
 import { useState } from 'react';
 import { dashboard as dashboardRoute } from '@/routes';
 
@@ -64,9 +58,7 @@ function Pagination({
                         link.active
                             ? 'bg-indigo-600 text-white'
                             : 'bg-white text-gray-700 hover:bg-gray-100 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800',
-                        !link.url
-                            ? 'cursor-not-allowed opacity-40'
-                            : '',
+                        !link.url ? 'cursor-not-allowed opacity-40' : '',
                     ].join(' ');
 
                     if (!link.url) {
@@ -142,7 +134,7 @@ export default function NotificationsIndex({
         <>
             <Head title="Mes notifications" />
 
-            <main className="min-h-screen bg-gray-50 px-4 py-8 dark:bg-gray-950 sm:px-6 lg:px-8">
+            <main className="min-h-screen bg-gray-50 px-4 py-8 sm:px-6 lg:px-8 dark:bg-gray-950">
                 <div className="mx-auto max-w-4xl">
                     <div className="mb-8">
                         <div className="mb-4">
@@ -161,7 +153,7 @@ export default function NotificationsIndex({
                                 </div>
 
                                 <div>
-                                    <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100 sm:text-3xl">
+                                    <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl dark:text-gray-100">
                                         Mes notifications
                                     </h1>
 
@@ -223,9 +215,9 @@ export default function NotificationsIndex({
                             </h2>
 
                             <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-gray-600 dark:text-gray-400">
-                                Tes notifications apparaîtront ici lorsque
-                                tu recevras des informations importantes
-                                sur ProxiServices.
+                                Tes notifications apparaîtront ici lorsque tu
+                                recevras des informations importantes sur
+                                ProxiServices.
                             </p>
                         </section>
                     ) : (
@@ -271,20 +263,24 @@ export default function NotificationsIndex({
                                                     )}
                                                 </div>
 
-                                                <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-gray-600 dark:text-gray-400">
+                                                <p className="mt-2 text-sm leading-6 whitespace-pre-wrap text-gray-600 dark:text-gray-400">
                                                     {notification.message}
                                                 </p>
 
                                                 {notification.created_at && (
                                                     <p className="mt-3 text-xs text-gray-400">
-                                                        {notification.created_at}
+                                                        {
+                                                            notification.created_at
+                                                        }
                                                     </p>
                                                 )}
 
                                                 <div className="mt-4 flex flex-wrap items-center gap-4">
                                                     {notification.url && (
                                                         <Link
-                                                            href={notification.url}
+                                                            href={
+                                                                notification.url
+                                                            }
                                                             className="inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-600 hover:text-indigo-800"
                                                         >
                                                             Ouvrir
