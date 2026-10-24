@@ -5,10 +5,19 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable(['rating', 'comment'])]
 class ServiceReview extends Model
 {
+    protected function casts(): array
+    {
+        return [
+            'rating' => 'integer',
+            'is_visible' => 'boolean',
+        ];
+    }
+
     /**
      * @return BelongsTo<ServiceRequest, $this>
      */
@@ -31,5 +40,13 @@ class ServiceReview extends Model
     public function providerProfile(): BelongsTo
     {
         return $this->belongsTo(ProviderProfile::class);
+    }
+
+    /**
+     * @return HasMany<ServiceReviewReport, $this>
+     */
+    public function reports(): HasMany
+    {
+        return $this->hasMany(ServiceReviewReport::class, 'service_review_id');
     }
 }

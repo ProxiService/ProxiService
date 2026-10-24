@@ -1,5 +1,6 @@
 import { Head, Link } from '@inertiajs/react';
 import { ArrowRight, MapPin, Search, ShieldCheck, Wrench } from 'lucide-react';
+import NotificationBell from '../../components/NotificationBell';
 import { index as clientRequests } from '@/routes/client/requests';
 
 type Category = {
@@ -20,6 +21,10 @@ export default function ClientDashboard({ categories }: ClientDashboardProps) {
             <Head title="Espace client" />
 
             <div className="flex flex-col gap-8 p-4 md:p-8">
+                <div className="flex justify-end">
+                    <NotificationBell />
+                </div>
+
                 {/* En-tête */}
                 <header>
                     <p className="text-sm font-semibold tracking-wider text-primary uppercase">
@@ -81,7 +86,7 @@ export default function ClientDashboard({ categories }: ClientDashboardProps) {
                 </section>
 
                 {/* Catégories chargées depuis Laravel */}
-                <section>
+                <section id="services" className="scroll-mt-8">
                     <div className="mb-4">
                         <h2 className="text-xl font-semibold">
                             Explorer les services
@@ -164,8 +169,14 @@ export default function ClientDashboard({ categories }: ClientDashboardProps) {
                             </div>
                         </div>
 
-                        <div className="rounded-xl border bg-card p-5">
-                            <ShieldCheck className="size-6 text-primary" />
+                        <Link
+                            href="#services"
+                            className="group rounded-xl border bg-card p-5 transition-colors hover:border-primary/50 hover:bg-accent/30 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                        >
+                            <div className="flex items-start justify-between gap-3">
+                                <ShieldCheck className="size-6 text-primary" />
+                                <ArrowRight className="size-5 text-muted-foreground transition-transform group-hover:translate-x-1 group-hover:text-primary" />
+                            </div>
 
                             <h3 className="mt-3 font-semibold">
                                 Des prestataires évalués
@@ -175,7 +186,7 @@ export default function ClientDashboard({ categories }: ClientDashboardProps) {
                                 Consultez les profils, les tarifs et les avis
                                 des professionnels.
                             </p>
-                        </div>
+                        </Link>
                     </div>
                 </section>
             </div>

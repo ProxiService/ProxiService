@@ -9,6 +9,7 @@ import {
     Star,
     Wrench,
 } from 'lucide-react';
+import NotificationBell from '../../components/NotificationBell';
 import { edit as editProviderProfile } from '@/routes/prestataire/profile';
 import { index as providerRequests } from '@/routes/prestataire/requests';
 
@@ -45,6 +46,10 @@ export default function PrestataireDashboard() {
             <Head title="Espace prestataire" />
 
             <div className="flex flex-col gap-8 p-4 md:p-8">
+                <div className="flex justify-end">
+                    <NotificationBell />
+                </div>
+
                 <header>
                     <p className="text-sm font-semibold tracking-wider text-primary uppercase">
                         ProxiServices · Espace professionnel

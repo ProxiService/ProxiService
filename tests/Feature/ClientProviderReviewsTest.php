@@ -5,6 +5,7 @@ use App\Models\ProviderProfile;
 use App\Models\Service;
 use App\Models\ServiceRequest as ServiceRequestModel;
 use App\Models\ServiceReview;
+use App\Models\ServiceReviewReport;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -139,5 +140,33 @@ test('un profil sans avis ne reçoit pas de note moyenne fictive', function () {
             ->where('reviewSummary.average', null)
             ->where('reviewSummary.count', 0)
             ->has('reviews', 0)
+        );
+});
+
+test('le profil indique si le client a déjà signalé un avis', function () {
+    $fixture = createProviderReviewDisplayFixture([5, 4]);
+    $latestReview = $fixture['profile']->reviews()->latest()->firstOrFail();
+
+    $report = new ServiceReviewReport([
+        'reason' => 'abusive',
+        'details' => null,
+    ]);
+    $report->review()->associate($latestReview);
+    $report->reporter()->associate($fixture['visitor']);
+    $report->save();
+
+    $this->actingAs($fixture['visitor'])
+        ->get(route('client.services.providers.show', [
+            'service' => $fixture['service']->slug,
+            'providerProfile' => $fixture['profile']->id,
+        ]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('client/providers/show')
+            ->where('currentUserId', $fixture['visitor']->id)
+            ->where('reviews.0.id', $latestReview->id)
+            ->where('reviews.0.client_id', $latestReview->client_id)
+            ->where('reviews.0.has_reported', true)
+            ->where('reviews.1.has_reported', false)
         );
 });

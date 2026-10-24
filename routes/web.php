@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\ProviderReviewController;
+use App\Http\Controllers\Admin\ReviewReportController as AdminReviewReportController;
 use App\Http\Controllers\Client\CategoryController;
 use App\Http\Controllers\Client\DashboardController;
 use App\Http\Controllers\Client\MyServiceRequestsController;
@@ -9,8 +10,10 @@ use App\Http\Controllers\Client\SearchController;
 use App\Http\Controllers\Client\ServiceProviderController;
 use App\Http\Controllers\Client\ServiceRequestController;
 use App\Http\Controllers\Client\ServiceReviewController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Prestataire\ProviderProfileController;
 use App\Http\Controllers\Prestataire\ServiceRequestController as PrestataireServiceRequestController;
+use App\Http\Controllers\ReviewReportController;
 use App\Http\Controllers\ServiceRequestConversationController;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
@@ -57,6 +60,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
         return Inertia::render('dashboard');
     })->name('dashboard');
 
+    Route::post(
+        'reviews/{serviceReview}/report',
+        [ReviewReportController::class, 'store'],
+    )->name('reviews.report.store');
+
     /*
     |--------------------------------------------------------------------------
     | Espace client
@@ -69,6 +77,21 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->group(function () {
             Route::get('dashboard', DashboardController::class)
                 ->name('dashboard');
+
+            Route::get('notifications', [
+                NotificationController::class,
+                'index',
+            ])->name('notifications.index');
+
+            Route::patch('notifications/read-all', [
+                NotificationController::class,
+                'markAllAsRead',
+            ])->name('notifications.read-all');
+
+            Route::patch('notifications/{notification}/read', [
+                NotificationController::class,
+                'markAsRead',
+            ])->name('notifications.read');
 
             Route::get('requests', MyServiceRequestsController::class)
                 ->name('requests.index');
@@ -134,6 +157,21 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::inertia('dashboard', 'prestataire/dashboard')
                 ->name('dashboard');
 
+            Route::get('notifications', [
+                NotificationController::class,
+                'index',
+            ])->name('notifications.index');
+
+            Route::patch('notifications/read-all', [
+                NotificationController::class,
+                'markAllAsRead',
+            ])->name('notifications.read-all');
+
+            Route::patch('notifications/{notification}/read', [
+                NotificationController::class,
+                'markAsRead',
+            ])->name('notifications.read');
+
             Route::get('profile', [ProviderProfileController::class, 'edit'])->name('profile.edit');
 
             Route::put('profile', [ProviderProfileController::class, 'update'])->name('profile.update');
@@ -187,6 +225,21 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::inertia('dashboard', 'admin/dashboard')
                 ->name('dashboard');
 
+            Route::get('notifications', [
+                NotificationController::class,
+                'index',
+            ])->name('notifications.index');
+
+            Route::patch('notifications/read-all', [
+                NotificationController::class,
+                'markAllAsRead',
+            ])->name('notifications.read-all');
+
+            Route::patch('notifications/{notification}/read', [
+                NotificationController::class,
+                'markAsRead',
+            ])->name('notifications.read');
+
             Route::get('providers', [
                 ProviderReviewController::class,
                 'index',
@@ -201,6 +254,21 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 ProviderReviewController::class,
                 'reject',
             ])->name('providers.reject');
+
+            Route::get('review-reports', [
+                AdminReviewReportController::class,
+                'index',
+            ])->name('review-reports.index');
+
+            Route::patch('review-reports/{serviceReviewReport}/dismiss', [
+                AdminReviewReportController::class,
+                'dismiss',
+            ])->name('review-reports.dismiss');
+
+            Route::patch('review-reports/{serviceReviewReport}/hide-review', [
+                AdminReviewReportController::class,
+                'hideReview',
+            ])->name('review-reports.hide-review');
         });
 });
 

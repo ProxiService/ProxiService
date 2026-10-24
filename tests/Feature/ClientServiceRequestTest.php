@@ -3,7 +3,9 @@
 use App\Models\Category;
 use App\Models\Service;
 use App\Models\User;
+use App\Notifications\NewServiceRequestNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Notification;
 use Inertia\Testing\AssertableInertia as Assert;
 
 uses(RefreshDatabase::class);
@@ -59,6 +61,8 @@ test('clients can submit a request to an approved provider', function () {
 
     $url = "/client/services/{$service->slug}/providers/{$profile->id}/request";
 
+    Notification::fake();
+
     $this->actingAs($client)
         ->get($url)
         ->assertOk()
@@ -82,6 +86,13 @@ test('clients can submit a request to an approved provider', function () {
             'client_id' => $provider->id,
         ])
         ->assertRedirect(route('client.dashboard'));
+
+    Notification::assertSentTo(
+        $provider,
+        NewServiceRequestNotification::class,
+        fn (NewServiceRequestNotification $notification): bool => $notification->serviceName === $service->name
+            && $notification->clientName === $client->name,
+    );
 
     $this->assertDatabaseHas('service_requests', [
         'client_id' => $client->id,

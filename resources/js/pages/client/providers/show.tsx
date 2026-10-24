@@ -1,15 +1,18 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, useForm } from '@inertiajs/react';
+import { useState, type FormEvent } from 'react';
 import {
     ArrowLeft,
     BriefcaseBusiness,
     CalendarClock,
     CheckCircle2,
     Clock3,
+    Flag,
     MapPin,
     Star,
     Wrench,
 } from 'lucide-react';
 import { create as createServiceRequest } from '@/routes/client/services/providers/request';
+import { store as reportReview } from '@/routes/reviews/report';
 
 type Service = {
     id: number;
@@ -44,6 +47,8 @@ type ProviderReview = {
     created_at: string | null;
     client_name: string;
     service_name: string;
+    client_id: number;
+    has_reported: boolean;
 };
 
 type ReviewSummary = {
@@ -54,6 +59,7 @@ type ReviewSummary = {
 type Props = {
     service: Service;
     provider: Provider;
+    currentUserId: number | null;
     reviewSummary: ReviewSummary;
     reviews: ProviderReview[];
 };
@@ -76,9 +82,142 @@ function getPriceLabel(service: Service, provider: Provider): string {
     return 'Sur devis';
 }
 
+type ReportReason =
+    | 'spam'
+    | 'abusive'
+    | 'false_information'
+    | 'conflict_of_interest'
+    | 'other';
+
+function ReviewReportForm({ reviewId }: { reviewId: number }) {
+    const [isOpen, setIsOpen] = useState(false);
+    const form = useForm({
+        reason: 'abusive' as ReportReason,
+        details: '',
+    });
+
+    function submitReport(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+
+        form.post(reportReview.url(reviewId), {
+            preserveScroll: true,
+            onSuccess: () => {
+                setIsOpen(false);
+                form.reset();
+            },
+        });
+    }
+
+    return (
+        <div className="mt-4 border-t border-gray-100 pt-4 dark:border-gray-800">
+            <button
+                type="button"
+                aria-expanded={isOpen}
+                onClick={() => setIsOpen(!isOpen)}
+                className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground"
+            >
+                <Flag className="size-4" />
+                Signaler cet avis
+            </button>
+
+            {isOpen && (
+                <form onSubmit={submitReport} className="mt-4 space-y-4">
+                    <div>
+                        <label
+                            htmlFor={`report-reason-${reviewId}`}
+                            className="mb-2 block text-sm font-medium"
+                        >
+                            Motif du signalement
+                        </label>
+                        <select
+                            id={`report-reason-${reviewId}`}
+                            value={form.data.reason}
+                            onChange={(event) =>
+                                form.setData(
+                                    'reason',
+                                    event.target.value as ReportReason,
+                                )
+                            }
+                            disabled={form.processing}
+                            className="w-full rounded-lg border border-gray-300 bg-background px-3 py-2 text-sm dark:border-gray-700"
+                        >
+                            <option value="spam">Spam</option>
+                            <option value="abusive">Contenu abusif</option>
+                            <option value="false_information">
+                                Informations fausses
+                            </option>
+                            <option value="conflict_of_interest">
+                                Conflit d’intérêts
+                            </option>
+                            <option value="other">Autre problème</option>
+                        </select>
+                        {form.errors.reason && (
+                            <p
+                                role="alert"
+                                className="mt-1 text-sm text-red-600"
+                            >
+                                {form.errors.reason}
+                            </p>
+                        )}
+                    </div>
+
+                    <div>
+                        <label
+                            htmlFor={`report-details-${reviewId}`}
+                            className="mb-2 block text-sm font-medium"
+                        >
+                            Détails (facultatif)
+                        </label>
+                        <textarea
+                            id={`report-details-${reviewId}`}
+                            value={form.data.details}
+                            onChange={(event) =>
+                                form.setData('details', event.target.value)
+                            }
+                            maxLength={2000}
+                            rows={3}
+                            disabled={form.processing}
+                            className="w-full rounded-lg border border-gray-300 bg-background px-3 py-2 text-sm dark:border-gray-700"
+                        />
+                        {form.errors.details && (
+                            <p
+                                role="alert"
+                                className="mt-1 text-sm text-red-600"
+                            >
+                                {form.errors.details}
+                            </p>
+                        )}
+                    </div>
+
+                    <div className="flex flex-wrap gap-3">
+                        <button
+                            type="submit"
+                            disabled={form.processing}
+                            className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            {form.processing
+                                ? 'Envoi en cours…'
+                                : 'Envoyer le signalement'}
+                        </button>
+                        <button
+                            type="button"
+                            disabled={form.processing}
+                            onClick={() => setIsOpen(false)}
+                            className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-accent disabled:opacity-50"
+                        >
+                            Annuler
+                        </button>
+                    </div>
+                </form>
+            )}
+        </div>
+    );
+}
+
 export default function ProviderDetails({
     service,
     provider,
+    currentUserId,
     reviewSummary,
     reviews,
 }: Props) {
@@ -296,6 +435,22 @@ export default function ProviderDetails({
                                             {review.comment}
                                         </p>
                                     )}
+
+                                    {currentUserId !== null &&
+                                        currentUserId !== review.client_id && (
+                                            <div className="mt-4 border-t border-gray-100 pt-3 dark:border-gray-800">
+                                                {review.has_reported ? (
+                                                    <p className="text-sm text-gray-500 dark:text-muted-foreground">
+                                                        Tu as déjà signalé cet
+                                                        avis.
+                                                    </p>
+                                                ) : (
+                                                    <ReviewReportForm
+                                                        reviewId={review.id}
+                                                    />
+                                                )}
+                                            </div>
+                                        )}
                                 </article>
                             ))}
                         </div>

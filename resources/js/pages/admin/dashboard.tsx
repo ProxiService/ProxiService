@@ -1,5 +1,7 @@
 import { Head, Link } from '@inertiajs/react';
+import NotificationBell from '../../components/NotificationBell';
 import { index as pendingProviders } from '@/routes/admin/providers';
+import { index as reviewReports } from '@/routes/admin/review-reports';
 import {
     AlertTriangle,
     BriefcaseBusiness,
@@ -73,7 +75,7 @@ const managementItems = [
         title: 'Litiges et signalements',
         description: 'Examiner les problèmes signalés.',
         icon: AlertTriangle,
-        href: null,
+        href: reviewReports(),
     },
 ];
 
@@ -83,6 +85,10 @@ export default function AdminDashboard() {
             <Head title="Administration" />
 
             <div className="flex flex-col gap-8 p-4 md:p-8">
+                <div className="flex justify-end">
+                    <NotificationBell />
+                </div>
+
                 <header>
                     <p className="text-sm font-semibold tracking-wider text-primary uppercase">
                         ProxiServices · Administration

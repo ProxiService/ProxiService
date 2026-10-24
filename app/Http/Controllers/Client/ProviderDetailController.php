@@ -39,20 +39,32 @@ class ProviderDetailController extends Controller
 
         $providerProfile->load('user:id,name');
 
-        $reviewCount = $providerProfile->reviews()->count();
-        $averageRating = $providerProfile->reviews()->avg('rating');
+        $currentUserId = auth()->id();
+
+        $reviewCount = $providerProfile->reviews()
+            ->where('is_visible', true)
+            ->count();
+
+        $averageRating = $providerProfile->reviews()
+            ->where('is_visible', true)
+            ->avg('rating');
 
         $reviews = $providerProfile->reviews()
+            ->where('is_visible', true)
             ->with([
                 'client:id,name',
                 'serviceRequest:id,service_id',
                 'serviceRequest.service:id,name',
+                'reports' => fn ($query) => $query
+                    ->where('reporter_id', $currentUserId),
             ])
             ->latest()
             ->limit(5)
             ->get()
             ->map(fn (ServiceReview $review): array => [
                 'id' => $review->id,
+                'client_id' => (int) $review->client_id,
+                'has_reported' => $review->reports->isNotEmpty(),
                 'rating' => (int) $review->rating,
                 'comment' => $review->comment,
                 'created_at' => $review->created_at?->format('d/m/Y'),
@@ -86,6 +98,10 @@ class ProviderDetailController extends Controller
                 'is_available' => $providerProfile->is_available,
                 'price' => $offeredService->pivot->price,
             ],
+
+            'currentUserId' => $currentUserId !== null
+                ? (int) $currentUserId
+                : null,
 
             'reviewSummary' => [
                 'average' => $averageRating !== null

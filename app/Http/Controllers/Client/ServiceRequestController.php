@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ProviderProfile;
 use App\Models\Service;
 use App\Models\ServiceRequest as ServiceRequestModel;
+use App\Notifications\NewServiceRequestNotification;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -120,6 +121,14 @@ class ServiceRequestController extends Controller
         $serviceRequest->status = 'pending';
 
         $serviceRequest->save();
+
+        $providerProfile->user->notify(
+            new NewServiceRequestNotification(
+                serviceRequestId: $serviceRequest->id,
+                serviceName: $service->name,
+                clientName: $request->user()->name,
+            ),
+        );
 
         return to_route('client.dashboard')
             ->with('success', 'Votre demande a été envoyée au prestataire.');
