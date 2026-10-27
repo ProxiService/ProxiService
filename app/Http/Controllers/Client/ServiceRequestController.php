@@ -8,6 +8,7 @@ use App\Models\Service;
 use App\Models\ServiceCommission;
 use App\Models\ServiceRequest as ServiceRequestModel;
 use App\Notifications\NewServiceRequestNotification;
+use App\Notifications\ServiceRequestStatusNotification;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -161,6 +162,18 @@ class ServiceRequestController extends Controller
                 'Cette demande ne peut pas être confirmée dans son état actuel.',
             );
 
+            $completedPayment = $lockedRequest->payments()
+                ->where('status', 'completed')
+                ->latest()
+                ->lockForUpdate()
+                ->first();
+
+            abort_unless(
+                $completedPayment !== null,
+                409,
+                'Un paiement confirmé est nécessaire pour terminer cette prestation.',
+            );
+
             abort_if(
                 $lockedRequest->commission()->exists(),
                 409,
@@ -207,6 +220,12 @@ class ServiceRequestController extends Controller
                 $grossAmount = (float) $grossAmount;
             }
 
+            abort_unless(
+                abs((float) $completedPayment->amount - (float) $grossAmount) <= 0.01,
+                409,
+                'Le montant payé ne correspond pas au prix convenu pour cette prestation.',
+            );
+
             $commissionRate = (float) config(
                 'proxiservices.commission_rate',
                 10.0,
@@ -244,6 +263,25 @@ class ServiceRequestController extends Controller
             $lockedRequest->status = 'completed';
             $lockedRequest->save();
         });
+
+        $updatedRequest = $serviceRequest->fresh([
+            'service:id,name',
+            'providerProfile.user:id,name',
+        ]);
+
+        $providerUser = $updatedRequest?->providerProfile?->user;
+
+        if ($updatedRequest && $providerUser) {
+            $providerUser->notify(
+                new ServiceRequestStatusNotification(
+                    serviceRequestId: (int) $updatedRequest->id,
+                    serviceName: $updatedRequest->service->name,
+                    status: 'completed',
+                    actorName: $request->user()->name,
+                    recipientRole: 'prestataire',
+                ),
+            );
+        }
 
         return redirect()
             ->route('client.requests.index')

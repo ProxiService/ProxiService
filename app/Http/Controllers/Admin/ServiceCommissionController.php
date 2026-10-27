@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\ServiceCommission;
-use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 use LogicException;
@@ -16,13 +15,29 @@ class ServiceCommissionController extends Controller
      */
     public function index(): Response
     {
-        $totals = DB::table('service_commissions')
+        $totals = ServiceCommission::query()
+            ->toBase()
             ->selectRaw('COUNT(*) as total_commissions')
-            ->selectRaw('COALESCE(SUM(gross_amount), 0) as gross_total')
-            ->selectRaw('COALESCE(SUM(commission_amount), 0) as commission_total')
-            ->selectRaw('COALESCE(SUM(provider_amount), 0) as provider_total')
             ->selectRaw(
-                "COALESCE(SUM(CASE WHEN collection_status = 'pending' THEN commission_amount ELSE 0 END), 0) as pending_total"
+                'COALESCE(SUM(CASE WHEN is_reversed = 0 THEN gross_amount ELSE 0 END), 0) as gross_total'
+            )
+            ->selectRaw(
+                'COALESCE(SUM(CASE WHEN is_reversed = 0 THEN commission_amount ELSE 0 END), 0) as commission_total'
+            )
+            ->selectRaw(
+                'COALESCE(SUM(CASE WHEN is_reversed = 0 THEN provider_amount ELSE 0 END), 0) as provider_total'
+            )
+            ->selectRaw(
+                "COALESCE(SUM(CASE WHEN collection_status = 'pending' AND is_reversed = 0 THEN commission_amount ELSE 0 END), 0) as pending_total"
+            )
+            ->selectRaw(
+                'COALESCE(SUM(CASE WHEN is_reversed = 1 THEN commission_amount ELSE 0 END), 0) as reversed_total'
+            )
+            ->selectRaw(
+                'COALESCE(SUM(CASE WHEN is_reversed = 1 THEN gross_amount ELSE 0 END), 0) as reversed_gross_total'
+            )
+            ->selectRaw(
+                'COALESCE(SUM(CASE WHEN is_reversed = 1 THEN 1 ELSE 0 END), 0) as reversed_count'
             )
             ->first();
 
@@ -54,12 +69,18 @@ class ServiceCommissionController extends Controller
                     'commission_amount' => (float) $commission->commission_amount,
                     'provider_amount' => (float) $commission->provider_amount,
                     'collection_status' => $commission->collection_status,
-                    'collection_status_label' => match ($commission->collection_status) {
-                        'pending' => 'À collecter',
-                        'collected' => 'Collectée',
-                        'paid' => 'Payée',
-                        default => $commission->collection_status,
-                    },
+                    'is_reversed' => (bool) $commission->is_reversed,
+                    'reversed_at' => $commission->reversed_at
+                        ?->format('d/m/Y H:i'),
+                    'reversal_reason' => $commission->reversal_reason,
+                    'collection_status_label' => $commission->is_reversed
+                        ? 'Neutralisée après remboursement'
+                        : match ($commission->collection_status) {
+                            'pending' => 'À collecter',
+                            'collected' => 'Collectée',
+                            'paid' => 'Payée',
+                            default => $commission->collection_status,
+                        },
                     'calculated_at' => $commission->calculated_at
                         ->format('d/m/Y H:i'),
                 ],
@@ -72,6 +93,9 @@ class ServiceCommissionController extends Controller
                 'commission_total' => (float) $totals->commission_total,
                 'provider_total' => (float) $totals->provider_total,
                 'pending_total' => (float) $totals->pending_total,
+                'reversed_total' => (float) $totals->reversed_total,
+                'reversed_gross_total' => (float) $totals->reversed_gross_total,
+                'reversed_count' => (int) $totals->reversed_count,
             ],
             'commissions' => $commissions,
         ]);

@@ -72,6 +72,14 @@ class ServiceRequest extends Model
     }
 
     /**
+     * @return HasMany<ServicePayment, $this>
+     */
+    public function payments(): HasMany
+    {
+        return $this->hasMany(ServicePayment::class)->latest();
+    }
+
+    /**
      * @return HasOne<ServiceQuote, $this>
      */
     public function acceptedQuote(): HasOne

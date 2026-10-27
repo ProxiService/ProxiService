@@ -4,6 +4,7 @@ use App\Models\Category;
 use App\Models\ProviderProfile;
 use App\Models\Service;
 use App\Models\ServiceCommission;
+use App\Models\ServicePayment;
 use App\Models\ServiceQuote;
 use App\Models\ServiceRequest as ServiceRequestModel;
 use App\Models\User;
@@ -87,6 +88,23 @@ function makeCommissionAccountingFixture(
         $quote->responded_at = now();
         $quote->save();
     }
+
+    $paymentAmount = $pricingType === 'quote'
+        ? 25000
+        : ($providerPrice ?? $basePrice ?? 0);
+
+    $payment = new ServicePayment([
+        'provider' => 'geniuspay',
+        'provider_reference' => 'MTX-COMMISSION-TEST-'.$serviceRequest->id,
+        'amount' => $paymentAmount,
+        'currency' => 'XOF',
+        'status' => 'completed',
+        'environment' => 'sandbox',
+        'paid_at' => now(),
+    ]);
+
+    $payment->client()->associate($client);
+    $serviceRequest->payments()->save($payment);
 
     return compact(
         'client',
@@ -240,6 +258,49 @@ test('un taux de commission supérieur à 100 est rejeté', function () {
             'serviceRequest' => $fixture['serviceRequest']->id,
         ]))
         ->assertStatus(500);
+
+    $this->assertDatabaseCount('service_commissions', 0);
+
+    $this->assertDatabaseHas('service_requests', [
+        'id' => $fixture['serviceRequest']->id,
+        'status' => 'awaiting_confirmation',
+    ]);
+});
+
+test('une prestation remboursée ne peut pas être confirmée ni générer une commission', function () {
+    $fixture = makeCommissionAccountingFixture();
+
+    $payment = $fixture['serviceRequest']->payments()
+        ->firstOrFail();
+
+    $payment->status = 'refunded';
+    $payment->save();
+
+    $this->actingAs($fixture['client'])
+        ->patch(route('client.requests.confirm-completion', [
+            'serviceRequest' => $fixture['serviceRequest']->id,
+        ]))
+        ->assertStatus(409);
+
+    $this->assertDatabaseCount('service_commissions', 0);
+
+    $this->assertDatabaseHas('service_requests', [
+        'id' => $fixture['serviceRequest']->id,
+        'status' => 'awaiting_confirmation',
+    ]);
+});
+
+test('une prestation ne peut pas être confirmée si le paiement ne correspond pas au prix convenu', function () {
+    $fixture = makeCommissionAccountingFixture();
+    $payment = $fixture['serviceRequest']->payments()->firstOrFail();
+    $payment->amount = 24999;
+    $payment->save();
+
+    $this->actingAs($fixture['client'])
+        ->patch(route('client.requests.confirm-completion', [
+            'serviceRequest' => $fixture['serviceRequest']->id,
+        ]))
+        ->assertConflict();
 
     $this->assertDatabaseCount('service_commissions', 0);
 

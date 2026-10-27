@@ -8,6 +8,7 @@ use App\Http\Controllers\Client\DashboardController;
 use App\Http\Controllers\Client\MyServiceRequestsController;
 use App\Http\Controllers\Client\ProviderDetailController;
 use App\Http\Controllers\Client\SearchController;
+use App\Http\Controllers\Client\ServicePaymentController;
 use App\Http\Controllers\Client\ServiceProviderController;
 use App\Http\Controllers\Client\ServiceQuoteController;
 use App\Http\Controllers\Client\ServiceRequestController;
@@ -17,6 +18,7 @@ use App\Http\Controllers\Prestataire\ProviderProfileController;
 use App\Http\Controllers\Prestataire\ServiceRequestController as PrestataireServiceRequestController;
 use App\Http\Controllers\ReviewReportController;
 use App\Http\Controllers\ServiceRequestConversationController;
+use App\Http\Controllers\Webhooks\GeniusPayWebhookController;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -31,6 +33,11 @@ use Inertia\Response as InertiaResponse;
 */
 
 Route::inertia('/', 'welcome')->name('home');
+
+Route::post(
+    'webhooks/geniuspay',
+    GeniusPayWebhookController::class,
+)->name('webhooks.geniuspay');
 
 /*
 |--------------------------------------------------------------------------
@@ -155,6 +162,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 'requests/{serviceRequest}/quotes/{serviceQuote}/reject',
                 [ServiceQuoteController::class, 'reject'],
             )->name('requests.quotes.reject');
+
+            Route::post(
+                'requests/{serviceRequest}/payments',
+                [ServicePaymentController::class, 'store'],
+            )->name('requests.payments.store');
+
+            Route::get('payments/return', [
+                ServicePaymentController::class,
+                'returned',
+            ])->name('payments.return');
         });
     /*
     |--------------------------------------------------------------------------

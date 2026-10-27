@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Prestataire;
 use App\Http\Controllers\Controller;
 use App\Models\ServiceQuote;
 use App\Models\ServiceRequest as ServiceRequestModel;
+use App\Notifications\ServiceRequestStatusNotification;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -84,6 +85,7 @@ class ServiceRequestController extends Controller
 
         $serviceRequest->status = 'accepted';
         $serviceRequest->save();
+        $this->notifyClientOfStatus($request, $serviceRequest, 'accepted');
 
         return redirect()
             ->route('prestataire.requests.index')
@@ -107,10 +109,35 @@ class ServiceRequestController extends Controller
 
         $serviceRequest->status = 'rejected';
         $serviceRequest->save();
+        $this->notifyClientOfStatus($request, $serviceRequest, 'rejected');
 
         return redirect()
             ->route('prestataire.requests.index')
             ->with('success', 'La demande a été refusée.');
+    }
+
+    /**
+     * Notifier le client d'un changement de statut.
+     */
+    private function notifyClientOfStatus(
+        Request $request,
+        ServiceRequestModel $serviceRequest,
+        string $status,
+    ): void {
+        $serviceRequest->loadMissing([
+            'client:id,name',
+            'service:id,name',
+        ]);
+
+        $serviceRequest->client->notify(
+            new ServiceRequestStatusNotification(
+                serviceRequestId: (int) $serviceRequest->id,
+                serviceName: $serviceRequest->service->name,
+                status: $status,
+                actorName: $request->user()->name,
+                recipientRole: 'client',
+            ),
+        );
     }
 
     /**
@@ -151,6 +178,15 @@ class ServiceRequestController extends Controller
             );
         }
 
+        // Seul un paiement confirmé par le webhook GeniusPay autorise le démarrage.
+        abort_unless(
+            $serviceRequest->payments()
+                ->where('status', 'completed')
+                ->exists(),
+            409,
+            'Le client doit avoir réglé la prestation avant son démarrage.',
+        );
+
         abort_unless(
             $serviceRequest->status === 'accepted',
             409,
@@ -159,6 +195,7 @@ class ServiceRequestController extends Controller
 
         $serviceRequest->status = 'in_progress';
         $serviceRequest->save();
+        $this->notifyClientOfStatus($request, $serviceRequest, 'in_progress');
 
         return redirect()
             ->route('prestataire.requests.index')
@@ -182,6 +219,11 @@ class ServiceRequestController extends Controller
 
         $serviceRequest->status = 'awaiting_confirmation';
         $serviceRequest->save();
+        $this->notifyClientOfStatus(
+            $request,
+            $serviceRequest,
+            'awaiting_confirmation',
+        );
 
         return redirect()
             ->route('prestataire.requests.index')

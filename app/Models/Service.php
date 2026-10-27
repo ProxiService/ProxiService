@@ -48,4 +48,18 @@ class Service extends Model
             ->withPivot(['price', 'is_active'])
             ->withTimestamps();
     }
+
+    /**
+     * Resolve the price for a specific provider, falling back to base price.
+     */
+    public function getPriceForProvider(int $providerProfileId): float
+    {
+        $providerService = $this->providerProfiles()
+            ->where('provider_profile_id', $providerProfileId)
+            ->first();
+
+        $price = $providerService?->pivot->price ?? $this->base_price;
+
+        return (float) $price;
+    }
 }

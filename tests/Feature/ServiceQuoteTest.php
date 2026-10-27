@@ -3,6 +3,7 @@
 use App\Models\Category;
 use App\Models\ProviderProfile;
 use App\Models\Service;
+use App\Models\ServicePayment;
 use App\Models\ServiceRequest;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -124,12 +125,81 @@ test('le client peut accepter un devis et le demande passe en accepted', functio
 test('le prestataire ne peut pas démarrer une demande quote sans devis accepté', function () {
     $fixture = createQuoteFixture('accepted');
 
+    $payment = new ServicePayment([
+        'provider' => 'geniuspay',
+        'amount' => 25000,
+        'currency' => 'XOF',
+        'status' => 'completed',
+        'environment' => 'sandbox',
+        'paid_at' => now(),
+    ]);
+    $payment->client()->associate($fixture['client']);
+    $fixture['serviceRequest']->payments()->save($payment);
+
     $this->actingAs($fixture['provider'])
         ->patch(route('prestataire.requests.start', $fixture['serviceRequest']))
         ->assertStatus(409);
 
     $this->assertDatabaseHas('service_requests', [
         'id' => $fixture['serviceRequest']->id,
+        'status' => 'accepted',
+    ]);
+});
+
+test('un devis accepté ne suffit pas sans paiement confirmé', function () {
+    $fixture = createQuoteFixture('accepted');
+
+    $fixture['serviceRequest']->quotes()->create([
+        'provider_profile_id' => $fixture['profile']->id,
+        'amount' => 25000,
+        'description' => 'Installation complète de la pompe',
+        'status' => 'accepted',
+        'responded_at' => now(),
+    ]);
+
+    $this->actingAs($fixture['provider'])
+        ->patch(route('prestataire.requests.start', $fixture['serviceRequest']))
+        ->assertStatus(409);
+
+    $this->assertDatabaseHas('service_requests', [
+        'id' => $fixture['serviceRequest']->id,
+        'status' => 'accepted',
+    ]);
+});
+
+test('le prestataire peut démarrer après acceptation du devis et confirmation du paiement', function () {
+    $fixture = createQuoteFixture('accepted');
+
+    $quote = $fixture['serviceRequest']->quotes()->create([
+        'provider_profile_id' => $fixture['profile']->id,
+        'amount' => 25000,
+        'description' => 'Installation complète de la pompe',
+        'status' => 'accepted',
+        'responded_at' => now(),
+    ]);
+
+    $payment = new ServicePayment([
+        'provider' => 'geniuspay',
+        'amount' => 25000,
+        'currency' => 'XOF',
+        'status' => 'completed',
+        'environment' => 'sandbox',
+        'paid_at' => now(),
+    ]);
+    $payment->client()->associate($fixture['client']);
+    $fixture['serviceRequest']->payments()->save($payment);
+
+    $this->actingAs($fixture['provider'])
+        ->patch(route('prestataire.requests.start', $fixture['serviceRequest']))
+        ->assertRedirect(route('prestataire.requests.index'));
+
+    $this->assertDatabaseHas('service_requests', [
+        'id' => $fixture['serviceRequest']->id,
+        'status' => 'in_progress',
+    ]);
+
+    $this->assertDatabaseHas('service_quotes', [
+        'id' => $quote->id,
         'status' => 'accepted',
     ]);
 });

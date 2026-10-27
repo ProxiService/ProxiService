@@ -3,6 +3,7 @@
 use App\Models\Category;
 use App\Models\ProviderProfile;
 use App\Models\Service;
+use App\Models\ServicePayment;
 use App\Models\ServiceRequest as ServiceRequestModel;
 use App\Models\ServiceReview;
 use App\Models\User;
@@ -133,6 +134,10 @@ test('un client consulte uniquement ses propres demandes', function () {
             )
             ->where('requests.data.0.quotes.0.status', 'pending')
             ->where('requests.data.0.review', null)
+            ->where('requests.data.0.payment_available', false)
+            ->where('requests.data.0.payment_amount', null)
+            ->where('requests.data.0.payment_completed', false)
+            ->where('requests.data.0.payment', null)
         );
 
     expect($otherRequest->client_id)
@@ -163,6 +168,53 @@ test('le client reçoit les détails de son avis dans la liste de ses demandes',
             ->where(
                 'requests.data.0.review.comment',
                 'Travail sérieux et soigné.',
+            )
+        );
+});
+
+test('le client reçoit le prix accepté et le statut de paiement confirmé', function () {
+    $fixture = createClientRequestTrackingFixture();
+    $serviceRequest = $fixture['firstRequest'];
+    $serviceRequest->status = 'accepted';
+    $serviceRequest->save();
+
+    $fixture['service']->pricing_type = 'fixed';
+    $fixture['service']->base_price = 12000;
+    $fixture['service']->save();
+
+    $fixture['profile']->services()->attach($fixture['service']->id, [
+        'price' => 15000,
+        'is_active' => true,
+    ]);
+
+    $paidAt = now();
+    $payment = new ServicePayment([
+        'provider' => 'geniuspay',
+        'amount' => 15000,
+        'currency' => 'XOF',
+        'status' => 'completed',
+        'checkout_url' => null,
+        'environment' => 'sandbox',
+        'paid_at' => $paidAt,
+    ]);
+    $payment->client()->associate($fixture['client']);
+    $serviceRequest->payments()->save($payment);
+
+    $this->actingAs($fixture['client'])
+        ->get(route('client.requests.index'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('client/requests/index')
+            ->where('requests.data.0.service.base_price', '12000.00')
+            ->where('requests.data.0.payment_available', true)
+            ->where('requests.data.0.payment_amount', 15000)
+            ->where('requests.data.0.payment_completed', true)
+            ->where('requests.data.0.payment.status', 'completed')
+            ->where('requests.data.0.payment.amount', 15000)
+            ->where('requests.data.0.payment.checkout_available', false)
+            ->where(
+                'requests.data.0.payment.paid_at',
+                $paidAt->format('d/m/Y H:i'),
             )
         );
 });

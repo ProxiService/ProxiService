@@ -8,6 +8,7 @@ import {
     accept as acceptServiceQuote,
     reject as rejectServiceQuote,
 } from '@/routes/client/requests/quotes';
+import { store as storeServicePayment } from '@/routes/client/requests/payments';
 import { providers as serviceProviders } from '@/routes/client/services';
 import {
     AlertTriangle,
@@ -39,8 +40,13 @@ type ServiceRequestItem = {
         name: string;
         slug: string;
         pricing_type: string;
+        base_price: number | string | null;
     };
     quotes: ServiceQuoteItem[];
+    payment_available: boolean;
+    payment_amount: number | null;
+    payment_completed: boolean;
+    payment: PaymentSummary | null;
     provider: {
         name: string;
         city: string | null;
@@ -55,6 +61,15 @@ type ServiceQuoteItem = {
     status: 'pending' | 'accepted' | 'rejected' | 'superseded';
     created_at: string | null;
     responded_at: string | null;
+};
+
+type PaymentSummary = {
+    id: number;
+    status: string;
+    amount: number;
+    created_at: string | null;
+    paid_at: string | null;
+    checkout_available: boolean;
 };
 
 type PaginationLink = {
@@ -215,6 +230,22 @@ export default function MyServiceRequestsIndex({ requests }: PageProps) {
     const [processingQuoteId, setProcessingQuoteId] = useState<number | null>(
         null,
     );
+    const paymentForm = useForm<{ payment?: string }>({});
+
+    function startPayment(requestId: number) {
+        if (
+            paymentForm.processing ||
+            !window.confirm(
+                'Tu vas être redirigé vers GeniusPay pour payer cette prestation. Continuer ?',
+            )
+        ) {
+            return;
+        }
+
+        paymentForm.post(storeServicePayment.url(requestId), {
+            preserveScroll: true,
+        });
+    }
 
     function confirmCompletion(requestId: number) {
         if (
@@ -647,6 +678,206 @@ export default function MyServiceRequestsIndex({ requests }: PageProps) {
                                                 )}
                                             </section>
                                         )}
+
+                                        {serviceRequest.status === 'accepted' &&
+                                            serviceRequest.payment_available && (
+                                                <section className="border-t border-gray-100 pt-5">
+                                                    <h3 className="text-base font-semibold text-gray-900">
+                                                        Paiement de la
+                                                        prestation
+                                                    </h3>
+
+                                                    {serviceRequest.payment_completed ? (
+                                                        <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                                                            <p className="font-semibold text-emerald-800">
+                                                                Paiement
+                                                                confirmé
+                                                            </p>
+                                                            <p className="mt-1 text-sm text-emerald-700">
+                                                                Le règlement a
+                                                                été confirmé par
+                                                                GeniusPay. Tu
+                                                                peux retrouver
+                                                                la prestation
+                                                                dans tes
+                                                                demandes.
+                                                            </p>
+                                                            {serviceRequest
+                                                                .payment
+                                                                ?.paid_at && (
+                                                                <p className="mt-2 text-xs text-emerald-700">
+                                                                    Payé le{' '}
+                                                                    {
+                                                                        serviceRequest
+                                                                            .payment
+                                                                            .paid_at
+                                                                    }
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    ) : (
+                                                        <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
+                                                            <p className="text-sm text-gray-600">
+                                                                Montant à payer
+                                                            </p>
+                                                            <p className="mt-1 text-2xl font-bold text-gray-900">
+                                                                {serviceRequest.payment_amount !==
+                                                                null
+                                                                    ? `${serviceRequest.payment_amount.toLocaleString('fr-FR')} FCFA`
+                                                                    : 'Montant non disponible'}
+                                                            </p>
+
+                                                            {serviceRequest
+                                                                .payment
+                                                                ?.status ===
+                                                                'failed' && (
+                                                                <p className="mt-2 text-sm text-red-600">
+                                                                    La tentative
+                                                                    précédente a
+                                                                    échoué. Tu
+                                                                    peux
+                                                                    réessayer.
+                                                                </p>
+                                                            )}
+
+                                                            {serviceRequest
+                                                                .payment
+                                                                ?.status ===
+                                                                'cancelled' && (
+                                                                <p className="mt-2 text-sm text-gray-600">
+                                                                    La tentative
+                                                                    précédente a
+                                                                    été annulée.
+                                                                </p>
+                                                            )}
+
+                                                            {serviceRequest
+                                                                .payment
+                                                                ?.status ===
+                                                                'expired' && (
+                                                                <p className="mt-2 text-sm text-gray-600">
+                                                                    Le lien de
+                                                                    paiement
+                                                                    précédent a
+                                                                    expiré.
+                                                                </p>
+                                                            )}
+
+                                                            {serviceRequest
+                                                                .payment
+                                                                ?.status ===
+                                                                'refunded' && (
+                                                                <p className="mt-2 text-sm text-gray-600">
+                                                                    Le dernier
+                                                                    paiement a
+                                                                    été
+                                                                    remboursé.
+                                                                </p>
+                                                            )}
+
+                                                            {serviceRequest.payment &&
+                                                                [
+                                                                    'pending',
+                                                                    'processing',
+                                                                ].includes(
+                                                                    serviceRequest
+                                                                        .payment
+                                                                        .status,
+                                                                ) &&
+                                                                !serviceRequest
+                                                                    .payment
+                                                                    .checkout_available && (
+                                                                    <p className="mt-2 text-sm text-amber-700">
+                                                                        Une
+                                                                        tentative
+                                                                        de
+                                                                        paiement
+                                                                        est en
+                                                                        cours
+                                                                        d'initialisation.
+                                                                        Réessaie
+                                                                        lorsque
+                                                                        son état
+                                                                        sera
+                                                                        disponible.
+                                                                    </p>
+                                                                )}
+
+                                                            <button
+                                                                type="button"
+                                                                disabled={
+                                                                    paymentForm.processing ||
+                                                                    (serviceRequest.payment !==
+                                                                        null &&
+                                                                        [
+                                                                            'pending',
+                                                                            'processing',
+                                                                        ].includes(
+                                                                            serviceRequest
+                                                                                .payment
+                                                                                .status,
+                                                                        ) &&
+                                                                        !serviceRequest
+                                                                            .payment
+                                                                            .checkout_available)
+                                                                }
+                                                                onClick={() =>
+                                                                    startPayment(
+                                                                        serviceRequest.id,
+                                                                    )
+                                                                }
+                                                                className="mt-4 inline-flex items-center justify-center rounded-lg bg-indigo-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                                            >
+                                                                {paymentForm.processing
+                                                                    ? 'Ouverture du paiement...'
+                                                                    : serviceRequest
+                                                                            .payment
+                                                                            ?.checkout_available
+                                                                      ? 'Continuer vers le paiement'
+                                                                      : serviceRequest.payment &&
+                                                                          [
+                                                                              'failed',
+                                                                              'cancelled',
+                                                                              'expired',
+                                                                              'refunded',
+                                                                          ].includes(
+                                                                              serviceRequest
+                                                                                  .payment
+                                                                                  .status,
+                                                                          )
+                                                                        ? 'Réessayer le paiement'
+                                                                        : 'Payer la prestation'}
+                                                            </button>
+
+                                                            {paymentForm.errors
+                                                                .payment && (
+                                                                <p
+                                                                    role="alert"
+                                                                    className="mt-3 text-sm text-red-600"
+                                                                >
+                                                                    {
+                                                                        paymentForm
+                                                                            .errors
+                                                                            .payment
+                                                                    }
+                                                                </p>
+                                                            )}
+
+                                                            <p className="mt-3 text-xs leading-5 text-gray-500">
+                                                                Tu seras
+                                                                redirigé vers la
+                                                                page sécurisée
+                                                                de GeniusPay. Ne
+                                                                ferme pas la
+                                                                page avant
+                                                                d'avoir reçu le
+                                                                résultat du
+                                                                paiement.
+                                                            </p>
+                                                        </div>
+                                                    )}
+                                                </section>
+                                            )}
 
                                         <div className="flex flex-col gap-3 border-t border-gray-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
                                             <Link

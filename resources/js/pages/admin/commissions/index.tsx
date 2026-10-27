@@ -22,6 +22,9 @@ type CommissionItem = {
     provider_amount: number;
     collection_status: string;
     collection_status_label: string;
+    is_reversed: boolean;
+    reversed_at: string | null;
+    reversal_reason: string | null;
     calculated_at: string | null;
 };
 
@@ -45,6 +48,9 @@ type FinanceSummary = {
     commission_total: number;
     provider_total: number;
     pending_total: number;
+    reversed_total: number;
+    reversed_gross_total: number;
+    reversed_count: number;
 };
 
 type PageProps = {
@@ -172,7 +178,7 @@ export default function AdminCommissionsIndex({
 
                     <section
                         aria-label="Résumé financier"
-                        className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
+                        className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5"
                     >
                         <article className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
                             <div className="flex items-center justify-between gap-3">
@@ -205,7 +211,8 @@ export default function AdminCommissionsIndex({
                                 {formatMoney(summary.commission_total)}
                             </p>
                             <p className="mt-2 text-xs leading-5 text-gray-500">
-                                Total théorique des commissions de la plateforme.
+                                Total théorique des commissions de la
+                                plateforme.
                             </p>
                         </article>
 
@@ -242,6 +249,35 @@ export default function AdminCommissionsIndex({
                             <p className="mt-2 text-xs leading-5 text-gray-500">
                                 Commissions dont la collecte n'est pas
                                 enregistrée.
+                            </p>
+                        </article>
+
+                        <article className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+                            <div className="flex items-center justify-between gap-3">
+                                <span className="text-sm font-medium text-gray-600">
+                                    Commissions neutralisées
+                                </span>
+
+                                <div className="flex size-10 items-center justify-center rounded-xl bg-red-50">
+                                    <CircleDollarSign className="size-5 text-red-600" />
+                                </div>
+                            </div>
+
+                            <p className="mt-4 text-xl font-bold text-red-700 sm:text-2xl">
+                                {formatMoney(summary.reversed_total)}
+                            </p>
+
+                            <p className="mt-2 text-xs leading-5 text-gray-500">
+                                {summary.reversed_count} commission
+                                {summary.reversed_count > 1 ? 's' : ''}{' '}
+                                neutralisée
+                                {summary.reversed_count > 1 ? 's' : ''} après
+                                remboursement.
+                            </p>
+
+                            <p className="mt-2 text-xs text-gray-500">
+                                Volume remboursé:{' '}
+                                {formatMoney(summary.reversed_gross_total)}
                             </p>
                         </article>
                     </section>
@@ -342,34 +378,49 @@ export default function AdminCommissionsIndex({
                                                                 }
                                                             </p>
                                                         </td>
-                                                        <td className="whitespace-nowrap px-5 py-4 font-medium text-gray-900">
+                                                        <td className="px-5 py-4 font-medium whitespace-nowrap text-gray-900">
                                                             {formatMoney(
                                                                 commission.gross_amount,
                                                             )}
                                                         </td>
-                                                        <td className="whitespace-nowrap px-5 py-4 text-gray-700">
+                                                        <td className="px-5 py-4 whitespace-nowrap text-gray-700">
                                                             {formatRate(
                                                                 commission.commission_rate,
                                                             )}
                                                         </td>
-                                                        <td className="whitespace-nowrap px-5 py-4 font-semibold text-indigo-700">
+                                                        <td className="px-5 py-4 font-semibold whitespace-nowrap text-indigo-700">
                                                             {formatMoney(
                                                                 commission.commission_amount,
                                                             )}
                                                         </td>
-                                                        <td className="whitespace-nowrap px-5 py-4 font-medium text-emerald-700">
+                                                        <td className="px-5 py-4 font-medium whitespace-nowrap text-emerald-700">
                                                             {formatMoney(
                                                                 commission.provider_amount,
                                                             )}
                                                         </td>
                                                         <td className="px-5 py-4">
                                                             <span
-                                                                className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ${getStatusClass(commission.collection_status)}`}
+                                                                className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${getStatusClass(commission.collection_status)}`}
                                                             >
                                                                 {
                                                                     commission.collection_status_label
                                                                 }
                                                             </span>
+                                                            {commission.is_reversed && (
+                                                                <div className="mt-2 max-w-48 text-xs leading-5 text-gray-500">
+                                                                    {commission.reversal_reason ||
+                                                                        'Commission neutralisée.'}
+
+                                                                    {commission.reversed_at && (
+                                                                        <p className="mt-1">
+                                                                            Le{' '}
+                                                                            {
+                                                                                commission.reversed_at
+                                                                            }
+                                                                        </p>
+                                                                    )}
+                                                                </div>
+                                                            )}
                                                         </td>
                                                     </tr>
                                                 ),

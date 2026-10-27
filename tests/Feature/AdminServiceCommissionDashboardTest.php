@@ -164,3 +164,42 @@ test('le tableau financier affiche des totaux nuls lorsqu’aucune commission n�
             ->has('commissions.data', 0)
         );
 });
+
+test('les commissions remboursées sont exclues des totaux actifs et affichées séparément', function () {
+    $fixture = createAdminFinanceDashboardFixture();
+
+    $reversedCommission = addAdminFinanceCommission(
+        $fixture,
+        grossAmount: 25000,
+        rate: 10,
+        collectionStatus: 'pending',
+    );
+
+    $reversedCommission->forceFill([
+        'is_reversed' => true,
+        'reversed_at' => now(),
+        'reversal_reason' => 'Paiement remboursé par GeniusPay.',
+    ])->save();
+
+    addAdminFinanceCommission(
+        $fixture,
+        grossAmount: 18000,
+        rate: 10,
+        collectionStatus: 'pending',
+    );
+
+    $this->actingAs($fixture['admin'])
+        ->get(route('admin.commissions.index'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('admin/commissions/index')
+            ->where('summary.total_commissions', 2)
+            ->where('summary.gross_total', 18000)
+            ->where('summary.commission_total', 1800)
+            ->where('summary.provider_total', 16200)
+            ->where('summary.pending_total', 1800)
+            ->where('summary.reversed_total', 2500)
+            ->where('summary.reversed_gross_total', 25000)
+            ->where('summary.reversed_count', 1)
+        );
+});
