@@ -7,6 +7,7 @@ use App\Models\ServiceQuote;
 use App\Models\ServiceRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class ServiceQuoteController extends Controller
 {
@@ -19,40 +20,37 @@ class ServiceQuoteController extends Controller
     ): RedirectResponse {
         $this->ensureOwnRequest($request, $serviceRequest);
 
-        abort_unless(
-            $serviceRequest->service?->pricing_type === 'quote',
-            409,
-            'Cette demande n’accepte pas de devis.',
-        );
-
-        abort_unless(
-            $serviceRequest->status === 'accepted',
-            409,
-            'La demande doit être acceptée avant de proposer un devis.',
-        );
-
         $validated = $request->validate([
             'amount' => ['required', 'numeric', 'min:0.01'],
             'description' => ['required', 'string', 'min:10', 'max:3000'],
         ]);
 
-        $hasActiveQuote = $serviceRequest->quotes()
-            ->whereIn('status', ['pending', 'accepted'])
-            ->exists();
+        DB::transaction(function () use ($request, $serviceRequest, $validated): void {
+            $lockedRequest = ServiceRequest::query()
+                ->whereKey($serviceRequest->id)
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        abort_unless(
-            ! $hasActiveQuote,
-            409,
-            'Un devis est déjà actif pour cette demande.',
-        );
+            abort_unless((int) $lockedRequest->provider_profile_id === (int) $request->user()->providerProfile?->id, 404,
+                'Demande introuvable.');
+            abort_unless($lockedRequest->service?->pricing_type === 'quote', 409,
+                'Cette demande n’accepte pas de devis.');
+            abort_unless($lockedRequest->status === 'accepted', 409,
+                'La demande doit être acceptée avant de proposer un devis.');
+            abort_if($lockedRequest->hasOpenDispute(), 409,
+                'La demande est gelée pendant le traitement du signalement.');
 
-        ServiceQuote::create([
-            'service_request_id' => $serviceRequest->id,
-            'provider_profile_id' => $request->user()->providerProfile?->id,
-            'amount' => $validated['amount'],
-            'description' => $validated['description'],
-            'status' => 'pending',
-        ]);
+            abort_if($lockedRequest->quotes()->whereIn('status', ['pending', 'accepted'])->exists(), 409,
+                'Un devis est déjà actif pour cette demande.');
+
+            ServiceQuote::create([
+                'service_request_id' => $lockedRequest->id,
+                'provider_profile_id' => $request->user()->providerProfile?->id,
+                'amount' => $validated['amount'],
+                'description' => $validated['description'],
+                'status' => 'pending',
+            ]);
+        });
 
         return redirect()
             ->route('prestataire.requests.index')

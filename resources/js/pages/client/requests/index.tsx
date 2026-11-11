@@ -9,6 +9,7 @@ import {
     reject as rejectServiceQuote,
 } from '@/routes/client/requests/quotes';
 import { store as storeServicePayment } from '@/routes/client/requests/payments';
+import ServiceRequestIssueForm from '@/components/service-request-issue-form';
 import { providers as serviceProviders } from '@/routes/client/services';
 import {
     AlertTriangle,
@@ -30,7 +31,12 @@ type ServiceRequestItem = {
     address: string | null;
     scheduled_at: string | null;
     is_urgent: boolean;
+    urgent_dispatch_status: string | null;
+    urgent_expires_at: string | null;
     status: string;
+    dispute_status: string | null;
+    dispute_reason: string | null;
+    dispute_resolution: string | null;
     created_at: string | null;
     review: {
         rating: number;
@@ -60,6 +66,12 @@ type ServiceQuoteItem = {
     description: string;
     status: 'pending' | 'accepted' | 'rejected' | 'superseded';
     created_at: string | null;
+    commission: {
+        gross: number;
+        rate: number;
+        commission: number;
+        net: number;
+    };
     responded_at: string | null;
 };
 
@@ -88,6 +100,7 @@ type PaginatedRequests = {
 
 type PageProps = {
     requests: PaginatedRequests;
+    view: 'requests' | 'messages';
 };
 
 const statusLabels: Record<string, string> = {
@@ -96,6 +109,7 @@ const statusLabels: Record<string, string> = {
     in_progress: 'En cours',
     awaiting_confirmation: 'À confirmer',
     completed: 'Terminée',
+    expired: 'Expirée sans attribution',
     rejected: 'Refusée',
 };
 
@@ -223,7 +237,7 @@ function ReviewForm({ requestId }: { requestId: number }) {
     );
 }
 
-export default function MyServiceRequestsIndex({ requests }: PageProps) {
+export default function MyServiceRequestsIndex({ requests, view }: PageProps) {
     const [processingRequestId, setProcessingRequestId] = useState<
         number | null
     >(null);
@@ -302,7 +316,13 @@ export default function MyServiceRequestsIndex({ requests }: PageProps) {
 
     return (
         <>
-            <Head title="Mes demandes envoyées" />
+            <Head
+                title={
+                    view === 'messages'
+                        ? 'Mes messages'
+                        : 'Mes demandes envoyées'
+                }
+            />
 
             <div className="min-h-screen bg-gray-50 px-4 py-8 sm:px-6 lg:px-8">
                 <div className="mx-auto max-w-5xl">
@@ -318,12 +338,15 @@ export default function MyServiceRequestsIndex({ requests }: PageProps) {
                         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                             <div>
                                 <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">
-                                    Mes demandes envoyées
+                                    {view === 'messages'
+                                        ? 'Mes conversations'
+                                        : 'Mes demandes envoyées'}
                                 </h1>
 
                                 <p className="mt-2 text-sm leading-6 text-gray-600 sm:text-base">
-                                    Retrouve tes demandes de prestations et
-                                    vérifie leur état.
+                                    {view === 'messages'
+                                        ? 'Retrouve les échanges liés à tes demandes actives.'
+                                        : 'Retrouve tes demandes de prestations et vérifie leur état.'}
                                 </p>
                             </div>
 
@@ -332,7 +355,9 @@ export default function MyServiceRequestsIndex({ requests }: PageProps) {
 
                                 <div>
                                     <p className="text-xs text-gray-500">
-                                        Total de mes demandes
+                                        {view === 'messages'
+                                            ? 'Total de mes conversations'
+                                            : 'Total de mes demandes'}
                                     </p>
 
                                     <p className="text-xl font-bold text-gray-900">
@@ -351,12 +376,15 @@ export default function MyServiceRequestsIndex({ requests }: PageProps) {
                             </div>
 
                             <h2 className="text-lg font-semibold text-gray-900">
-                                Tu n'as pas encore envoyé de demande
+                                {view === 'messages'
+                                    ? 'Aucune conversation disponible'
+                                    : "Tu n'as pas encore envoyé de demande"}
                             </h2>
 
                             <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-gray-600">
-                                Explore les prestations disponibles et contacte
-                                un prestataire pour demander une intervention.
+                                {view === 'messages'
+                                    ? 'Les conversations apparaîtront ici après l’acceptation d’une demande.'
+                                    : 'Explore les prestations disponibles et contacte un prestataire pour demander une intervention.'}
                             </p>
 
                             <Link
@@ -432,6 +460,41 @@ export default function MyServiceRequestsIndex({ requests }: PageProps) {
 
                                     {/* Informations de la demande */}
                                     <div className="space-y-5 px-5 py-5 sm:px-6">
+                                        {serviceRequest.is_urgent && (
+                                            <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-900">
+                                                {serviceRequest.status ===
+                                                'pending' ? (
+                                                    <>
+                                                        Recherche en cours :
+                                                        rayon de 5 km, puis 10
+                                                        km après 5 minutes. La
+                                                        demande expire après 15
+                                                        minutes si aucun
+                                                        prestataire ne
+                                                        l’accepte.
+                                                    </>
+                                                ) : serviceRequest.status ===
+                                                  'expired' ? (
+                                                    <>
+                                                        {serviceRequest.urgent_dispatch_status ===
+                                                        'no_candidates'
+                                                            ? 'Aucun prestataire admissible n’a été trouvé à proximité.'
+                                                            : 'La diffusion a expiré sans acceptation.'}{' '}
+                                                        Aucun paiement n’a été
+                                                        lancé.
+                                                    </>
+                                                ) : serviceRequest.status ===
+                                                  'accepted' ? (
+                                                    <>
+                                                        Un prestataire a accepté
+                                                        et transmis son devis.
+                                                        Le checkout reste
+                                                        indisponible pour les
+                                                        demandes urgentes.
+                                                    </>
+                                                ) : null}
+                                            </div>
+                                        )}
                                         <div>
                                             <h3 className="mb-2 text-sm font-semibold text-gray-800">
                                                 Description de ton besoin
@@ -594,6 +657,30 @@ export default function MyServiceRequestsIndex({ requests }: PageProps) {
                                                                                 quote.status}
                                                                         </span>
                                                                     </div>
+
+                                                                    <p className="mt-2 text-sm text-gray-600">
+                                                                        Commission
+                                                                        plateforme
+                                                                        (
+                                                                        {
+                                                                            quote
+                                                                                .commission
+                                                                                .rate
+                                                                        }{' '}
+                                                                        %) :{' '}
+                                                                        {quote.commission.commission.toLocaleString(
+                                                                            'fr-FR',
+                                                                        )}{' '}
+                                                                        FCFA ·
+                                                                        Net
+                                                                        estimé
+                                                                        prestataire
+                                                                        :{' '}
+                                                                        {quote.commission.net.toLocaleString(
+                                                                            'fr-FR',
+                                                                        )}{' '}
+                                                                        FCFA.
+                                                                    </p>
 
                                                                     <p className="mt-3 text-sm leading-6 whitespace-pre-wrap text-gray-600">
                                                                         {
@@ -933,6 +1020,20 @@ export default function MyServiceRequestsIndex({ requests }: PageProps) {
                                                 </button>
                                             )}
                                         </div>
+
+                                        <ServiceRequestIssueForm
+                                            endpoint={`/client/requests/${serviceRequest.id}`}
+                                            status={serviceRequest.status}
+                                            disputeStatus={
+                                                serviceRequest.dispute_status
+                                            }
+                                            disputeReason={
+                                                serviceRequest.dispute_reason
+                                            }
+                                            disputeResolution={
+                                                serviceRequest.dispute_resolution
+                                            }
+                                        />
                                     </div>
 
                                     {serviceRequest.status === 'completed' && (

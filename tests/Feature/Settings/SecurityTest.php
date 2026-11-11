@@ -102,3 +102,17 @@ test('correct password must be provided to update password', function () {
         ->assertSessionHasErrors('current_password')
         ->assertRedirect(route('security.edit'));
 });
+
+test('un administrateur ne peut pas désactiver sa double authentification', function () {
+    $this->skipUnlessFortifyHas(Features::twoFactorAuthentication());
+
+    $admin = User::factory()->withTwoFactor()->create();
+    $admin->forceFill(['role' => 'admin'])->save();
+
+    $this->actingAs($admin)
+        ->withSession(['auth.password_confirmed_at' => time()])
+        ->delete('/user/two-factor-authentication')
+        ->assertForbidden();
+
+    $this->assertNotNull($admin->refresh()->two_factor_confirmed_at);
+});

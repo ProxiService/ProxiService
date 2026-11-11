@@ -1,6 +1,7 @@
 import { Head, Link, router, useForm } from '@inertiajs/react';
 import { show as providerConversation } from '@/routes/prestataire/requests/messages';
 import { store as storeProviderQuote } from '@/routes/prestataire/requests/quotes';
+import ServiceRequestIssueForm from '@/components/service-request-issue-form';
 import {
     finish as finishServiceRequest,
     start as startServiceRequest,
@@ -26,7 +27,12 @@ type ServiceRequestItem = {
     address: string | null;
     scheduled_at: string | null;
     is_urgent: boolean;
+    urgent_dispatch_status: string | null;
+    urgent_expires_at: string | null;
     status: string;
+    dispute_status: string | null;
+    dispute_reason: string | null;
+    dispute_resolution: string | null;
     created_at: string | null;
     client: {
         name: string;
@@ -46,6 +52,12 @@ type ServiceQuoteItem = {
     status: 'pending' | 'accepted' | 'rejected' | 'superseded';
     created_at: string | null;
     responded_at: string | null;
+    commission: {
+        gross: number;
+        rate: number;
+        commission: number;
+        net: number;
+    };
 };
 
 type PaginationLink = {
@@ -64,6 +76,8 @@ type PaginatedRequests = {
 
 type PageProps = {
     requests: PaginatedRequests;
+    commissionRate: number;
+    view: 'requests' | 'messages';
 };
 
 const statusLabels: Record<string, string> = {
@@ -73,6 +87,7 @@ const statusLabels: Record<string, string> = {
     awaiting_confirmation: 'À confirmer par le client',
     completed: 'Terminée',
     rejected: 'Refusée',
+    expired: 'Expirée sans attribution',
 };
 
 const statusClasses: Record<string, string> = {
@@ -96,7 +111,15 @@ function formatPaginationLabel(label: string): string {
     return label.replace('&laquo;', '«').replace('&raquo;', '»');
 }
 
-function ProviderQuoteForm({ requestId }: { requestId: number }) {
+function ProviderQuoteForm({
+    requestId,
+    commissionRate,
+    urgent = false,
+}: {
+    requestId: number;
+    commissionRate: number;
+    urgent?: boolean;
+}) {
     const form = useForm({
         amount: '',
         description: '',
@@ -110,17 +133,24 @@ function ProviderQuoteForm({ requestId }: { requestId: number }) {
             description: data.description.trim(),
         }));
 
-        form.post(storeProviderQuote.url(requestId), {
-            preserveScroll: true,
-            onSuccess: () => form.reset(),
-        });
+        form.post(
+            urgent
+                ? `/prestataire/requests/${requestId}/accept-urgent`
+                : storeProviderQuote.url(requestId),
+            {
+                preserveScroll: true,
+                onSuccess: () => form.reset(),
+            },
+        );
     }
 
     return (
         <form onSubmit={submitQuote} className="mt-4 space-y-4">
             <div>
                 <h4 className="font-semibold text-gray-900">
-                    Proposer un devis
+                    {urgent
+                        ? 'Accepter et envoyer un devis'
+                        : 'Proposer un devis'}
                 </h4>
 
                 <p className="mt-1 text-sm text-gray-600">
@@ -128,6 +158,23 @@ function ProviderQuoteForm({ requestId }: { requestId: number }) {
                     inclus.
                 </p>
             </div>
+
+            {Number(form.data.amount) > 0 && (
+                <p className="rounded-lg bg-indigo-50 p-3 text-sm text-indigo-900">
+                    Commission plateforme ({commissionRate} %) :{' '}
+                    {Math.round(
+                        (Number(form.data.amount) * commissionRate) / 100,
+                    ).toLocaleString('fr-FR')}{' '}
+                    FCFA. Net estimé pour toi :{' '}
+                    {(
+                        Number(form.data.amount) -
+                        Math.round(
+                            (Number(form.data.amount) * commissionRate) / 100,
+                        )
+                    ).toLocaleString('fr-FR')}{' '}
+                    FCFA.
+                </p>
+            )}
 
             <div>
                 <label
@@ -201,7 +248,11 @@ function ProviderQuoteForm({ requestId }: { requestId: number }) {
     );
 }
 
-export default function ProviderRequestsIndex({ requests }: PageProps) {
+export default function ProviderRequestsIndex({
+    requests,
+    commissionRate,
+    view,
+}: PageProps) {
     const [processingRequestId, setProcessingRequestId] = useState<
         number | null
     >(null);
@@ -261,7 +312,9 @@ export default function ProviderRequestsIndex({ requests }: PageProps) {
 
     return (
         <>
-            <Head title="Demandes reçues" />
+            <Head
+                title={view === 'messages' ? 'Mes messages' : 'Demandes reçues'}
+            />
 
             <div className="min-h-screen bg-gray-50 px-4 py-8 sm:px-6 lg:px-8">
                 <div className="mx-auto max-w-5xl">
@@ -277,13 +330,15 @@ export default function ProviderRequestsIndex({ requests }: PageProps) {
                         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                             <div>
                                 <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">
-                                    Demandes reçues
+                                    {view === 'messages'
+                                        ? 'Mes conversations'
+                                        : 'Demandes reçues'}
                                 </h1>
 
                                 <p className="mt-2 text-sm text-gray-600 sm:text-base">
-                                    Consulte les demandes de tes clients et
-                                    décide si tu peux effectuer les prestations
-                                    proposées.
+                                    {view === 'messages'
+                                        ? 'Retrouve les échanges avec les clients liés à tes prestations actives.'
+                                        : 'Consulte les demandes de tes clients et décide si tu peux effectuer les prestations proposées.'}
                                 </p>
                             </div>
 
@@ -292,7 +347,9 @@ export default function ProviderRequestsIndex({ requests }: PageProps) {
 
                                 <div>
                                     <p className="text-xs text-gray-500">
-                                        Total des demandes
+                                        {view === 'messages'
+                                            ? 'Total des conversations'
+                                            : 'Total des demandes'}
                                     </p>
 
                                     <p className="text-xl font-bold text-gray-900">
@@ -311,12 +368,15 @@ export default function ProviderRequestsIndex({ requests }: PageProps) {
                             </div>
 
                             <h2 className="text-lg font-semibold text-gray-900">
-                                Aucune demande pour le moment
+                                {view === 'messages'
+                                    ? 'Aucune conversation disponible'
+                                    : 'Aucune demande pour le moment'}
                             </h2>
 
                             <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-gray-600">
-                                Lorsqu'un client demandera l'une de tes
-                                prestations, sa demande apparaîtra ici.
+                                {view === 'messages'
+                                    ? 'Les conversations s’afficheront ici après acceptation d’une demande.'
+                                    : "Lorsqu'un client demandera l'une de tes prestations, sa demande apparaîtra ici."}
                             </p>
 
                             <Link
@@ -517,6 +577,29 @@ export default function ProviderRequestsIndex({ requests }: PageProps) {
                                                                             FCFA
                                                                         </p>
 
+                                                                        <p className="mt-2 text-sm text-gray-600">
+                                                                            Commission
+                                                                            (
+                                                                            {
+                                                                                quote
+                                                                                    .commission
+                                                                                    .rate
+                                                                            }{' '}
+                                                                            %) :{' '}
+                                                                            {quote.commission.commission.toLocaleString(
+                                                                                'fr-FR',
+                                                                            )}{' '}
+                                                                            FCFA
+                                                                            ·
+                                                                            Net
+                                                                            estimé
+                                                                            :{' '}
+                                                                            {quote.commission.net.toLocaleString(
+                                                                                'fr-FR',
+                                                                            )}{' '}
+                                                                            FCFA
+                                                                        </p>
+
                                                                         <span className="inline-flex w-fit rounded-full bg-white px-3 py-1 text-xs font-semibold text-gray-700">
                                                                             {{
                                                                                 pending:
@@ -572,6 +655,9 @@ export default function ProviderRequestsIndex({ requests }: PageProps) {
                                                             requestId={
                                                                 serviceRequest.id
                                                             }
+                                                            commissionRate={
+                                                                commissionRate
+                                                            }
                                                         />
                                                     )}
 
@@ -606,45 +692,68 @@ export default function ProviderRequestsIndex({ requests }: PageProps) {
                                         )}
 
                                         {/* Actions */}
-                                        {isPending && (
-                                            <div className="flex flex-col gap-3 border-t border-gray-100 bg-gray-50 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
-                                                <button
-                                                    type="button"
-                                                    disabled={isProcessing}
-                                                    onClick={() =>
-                                                        handleDecision(
-                                                            serviceRequest.id,
-                                                            'reject',
-                                                        )
-                                                    }
-                                                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-4 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-                                                >
-                                                    <XCircle className="size-4" />
+                                        {isPending &&
+                                            serviceRequest.is_urgent && (
+                                                <div className="border-t border-red-100 bg-red-50 px-5 py-4 sm:px-6">
+                                                    <p className="mb-3 text-sm text-red-900">
+                                                        Demande diffusée aux
+                                                        prestataires proches. La
+                                                        position précise du
+                                                        client n’est pas
+                                                        partagée.
+                                                    </p>
+                                                    <ProviderQuoteForm
+                                                        requestId={
+                                                            serviceRequest.id
+                                                        }
+                                                        commissionRate={
+                                                            commissionRate
+                                                        }
+                                                        urgent
+                                                    />
+                                                </div>
+                                            )}
 
-                                                    {isProcessing
-                                                        ? 'Traitement...'
-                                                        : 'Refuser'}
-                                                </button>
+                                        {isPending &&
+                                            !serviceRequest.is_urgent && (
+                                                <div className="flex flex-col gap-3 border-t border-gray-100 bg-gray-50 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
+                                                    <button
+                                                        type="button"
+                                                        disabled={isProcessing}
+                                                        onClick={() =>
+                                                            handleDecision(
+                                                                serviceRequest.id,
+                                                                'reject',
+                                                            )
+                                                        }
+                                                        className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-4 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                                    >
+                                                        <XCircle className="size-4" />
 
-                                                <button
-                                                    type="button"
-                                                    disabled={isProcessing}
-                                                    onClick={() =>
-                                                        handleDecision(
-                                                            serviceRequest.id,
-                                                            'accept',
-                                                        )
-                                                    }
-                                                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
-                                                >
-                                                    <CheckCircle2 className="size-4" />
+                                                        {isProcessing
+                                                            ? 'Traitement...'
+                                                            : 'Refuser'}
+                                                    </button>
 
-                                                    {isProcessing
-                                                        ? 'Traitement...'
-                                                        : 'Accepter'}
-                                                </button>
-                                            </div>
-                                        )}
+                                                    <button
+                                                        type="button"
+                                                        disabled={isProcessing}
+                                                        onClick={() =>
+                                                            handleDecision(
+                                                                serviceRequest.id,
+                                                                'accept',
+                                                            )
+                                                        }
+                                                        className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                                    >
+                                                        <CheckCircle2 className="size-4" />
+
+                                                        {isProcessing
+                                                            ? 'Traitement...'
+                                                            : 'Accepter'}
+                                                    </button>
+                                                </div>
+                                            )}
 
                                         {[
                                             'accepted',
@@ -727,6 +836,21 @@ export default function ProviderRequestsIndex({ requests }: PageProps) {
                                                 </Link>
                                             </div>
                                         )}
+                                        <div className="px-5 pb-4 sm:px-6">
+                                            <ServiceRequestIssueForm
+                                                endpoint={`/prestataire/requests/${serviceRequest.id}`}
+                                                status={serviceRequest.status}
+                                                disputeStatus={
+                                                    serviceRequest.dispute_status
+                                                }
+                                                disputeReason={
+                                                    serviceRequest.dispute_reason
+                                                }
+                                                disputeResolution={
+                                                    serviceRequest.dispute_resolution
+                                                }
+                                            />
+                                        </div>
                                     </article>
                                 );
                             })}

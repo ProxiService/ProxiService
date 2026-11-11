@@ -1,5 +1,6 @@
 <?php
 
+use App\Contracts\PaymentGateway;
 use App\Models\Category;
 use App\Models\ProviderProfile;
 use App\Models\Service;
@@ -7,11 +8,16 @@ use App\Models\ServicePayment;
 use App\Models\ServiceQuote;
 use App\Models\ServiceRequest as ServiceRequestModel;
 use App\Models\User;
+use App\Services\GeniusPayCheckoutService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request as HttpRequest;
 use Illuminate\Support\Facades\Http;
 
 uses(RefreshDatabase::class);
+
+test('la passerelle GeniusPay est fournie derrière le contrat de paiement', function () {
+    expect(app(PaymentGateway::class))->toBeInstanceOf(GeniusPayCheckoutService::class);
+});
 
 function createGeniusPayCheckoutFixture(
     string $pricingType = 'quote',

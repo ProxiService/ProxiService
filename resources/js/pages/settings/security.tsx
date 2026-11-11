@@ -1,4 +1,5 @@
-import { Form, Head } from '@inertiajs/react';
+import { Form, Head, router, useForm } from '@inertiajs/react';
+import type { FormEvent } from 'react';
 import { useRef } from 'react';
 import SecurityController from '@/actions/App/Http/Controllers/Settings/SecurityController';
 import Heading from '@/components/heading';
@@ -13,11 +14,24 @@ import ManagePasskeys from '@/components/manage-passkeys';
 // oxfmt-ignore
 type Props = {
     passwordRules: string;
-} & ManagePasskeysProps ;
+    canManageTwoFactor?: boolean;
+    twoFactorEnabled?: boolean;
+    twoFactorConfirmed?: boolean;
+    twoFactorRecoveryCodes?: string[];
+} & ManagePasskeysProps;
 
 export default function Security(props: Props) {
     const passwordInput = useRef<HTMLInputElement>(null);
     const currentPasswordInput = useRef<HTMLInputElement>(null);
+    const twoFactorForm = useForm({ code: '' });
+
+    function confirmTwoFactor(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+        twoFactorForm.post('/user/confirmed-two-factor-authentication', {
+            preserveScroll: true,
+            onSuccess: () => router.reload({ only: ['twoFactorConfirmed'] }),
+        });
+    }
 
     return (
         <>
@@ -125,6 +139,107 @@ export default function Security(props: Props) {
                 canManagePasskeys={props.canManagePasskeys}
                 passkeys={props.passkeys}
             />
+
+            {props.canManageTwoFactor && (
+                <section
+                    className="space-y-4 rounded-lg border p-4"
+                    aria-label="Double authentification"
+                >
+                    <Heading
+                        variant="small"
+                        title="Double authentification"
+                        description="Ajoute un code temporaire généré par une application d’authentification. Cette étape est obligatoire pour accéder à l’administration."
+                    />
+                    {!props.twoFactorEnabled && (
+                        <Button
+                            type="button"
+                            onClick={() =>
+                                router.post('/user/two-factor-authentication')
+                            }
+                        >
+                            Activer la double authentification
+                        </Button>
+                    )}
+                    {props.twoFactorEnabled && !props.twoFactorConfirmed && (
+                        <div className="space-y-4">
+                            <p className="text-sm">
+                                Scanne ce QR code avec ton application, puis
+                                saisis le code à six chiffres.
+                            </p>
+                            <img
+                                src="/user/two-factor-qr-code"
+                                alt="QR code de configuration de la double authentification"
+                                className="h-48 w-48"
+                            />
+                            <form
+                                onSubmit={confirmTwoFactor}
+                                className="flex flex-wrap items-end gap-3"
+                            >
+                                <div className="grid gap-2">
+                                    <Label htmlFor="two-factor-code">
+                                        Code de confirmation
+                                    </Label>
+                                    <input
+                                        id="two-factor-code"
+                                        inputMode="numeric"
+                                        autoComplete="one-time-code"
+                                        maxLength={6}
+                                        className="h-11 rounded-md border bg-background px-3 text-base"
+                                        value={twoFactorForm.data.code}
+                                        onChange={(event) =>
+                                            twoFactorForm.setData(
+                                                'code',
+                                                event.target.value,
+                                            )
+                                        }
+                                    />
+                                    <InputError
+                                        message={twoFactorForm.errors.code}
+                                    />
+                                </div>
+                                <Button disabled={twoFactorForm.processing}>
+                                    Confirmer
+                                </Button>
+                            </form>
+                        </div>
+                    )}
+                    {props.twoFactorConfirmed && (
+                        <div className="space-y-2">
+                            <p className="text-sm font-medium text-green-700">
+                                La double authentification est activée et
+                                confirmée. Conserve ces codes de secours dans un
+                                endroit sûr.
+                            </p>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() =>
+                                    router.post(
+                                        '/user/two-factor-recovery-codes',
+                                        {},
+                                        {
+                                            preserveScroll: true,
+                                            onSuccess: () =>
+                                                router.reload({
+                                                    only: [
+                                                        'twoFactorRecoveryCodes',
+                                                    ],
+                                                }),
+                                        },
+                                    )
+                                }
+                            >
+                                Générer de nouveaux codes de secours
+                            </Button>
+                            <ul className="grid gap-1 rounded-md bg-muted p-3 font-mono text-sm sm:grid-cols-2">
+                                {props.twoFactorRecoveryCodes?.map((code) => (
+                                    <li key={code}>{code}</li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+                </section>
+            )}
         </>
     );
 }

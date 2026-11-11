@@ -102,3 +102,37 @@ test('providers can select services for their profile', function () {
         'service_id' => $service->id,
     ]);
 });
+
+test('provider can opt into saving bounded work coordinates', function () {
+    $provider = User::factory()->create(['role' => 'prestataire', 'email_verified_at' => now()]);
+
+    $this->actingAs($provider)
+        ->put(route('prestataire.profile.update'), [
+            'city' => 'Abidjan',
+            'neighborhood' => 'Cocody',
+            'latitude' => 5.35,
+            'longitude' => -3.99,
+        ])
+        ->assertRedirect(route('prestataire.profile.edit'));
+
+    $this->assertDatabaseHas('provider_profiles', [
+        'user_id' => $provider->id,
+        'latitude' => 5.35,
+        'longitude' => -3.99,
+    ]);
+});
+
+test('provider cannot save coordinates outside geographic bounds', function () {
+    $provider = User::factory()->create(['role' => 'prestataire', 'email_verified_at' => now()]);
+
+    $this->actingAs($provider)
+        ->put(route('prestataire.profile.update'), [
+            'city' => 'Abidjan',
+            'neighborhood' => 'Cocody',
+            'latitude' => 100,
+            'longitude' => -3.99,
+        ])
+        ->assertSessionHasErrors('latitude');
+
+    $this->assertDatabaseCount('provider_profiles', 0);
+});

@@ -133,6 +133,8 @@ test('un client consulte uniquement ses propres demandes', function () {
                 'Remplacement du robinet et vérification des joints.',
             )
             ->where('requests.data.0.quotes.0.status', 'pending')
+            ->where('requests.data.0.quotes.0.commission.rate', 10)
+            ->where('requests.data.0.quotes.0.commission.net', 10800)
             ->where('requests.data.0.review', null)
             ->where('requests.data.0.payment_available', false)
             ->where('requests.data.0.payment_amount', null)
@@ -222,4 +224,20 @@ test('le client reçoit le prix accepté et le statut de paiement confirmé', fu
 test('un visiteur non connecté ne peut pas consulter ses demandes', function () {
     $this->get(route('client.requests.index'))
         ->assertRedirect(route('login'));
+});
+
+test('la navigation Messages client ne montre que les conversations de demandes actives', function () {
+    $fixture = createClientRequestTrackingFixture();
+    $fixture['firstRequest']->forceFill(['status' => 'accepted'])->save();
+    createTrackedServiceRequest($fixture['client'], $fixture['profile'], $fixture['service']);
+
+    $this->actingAs($fixture['client'])
+        ->get(route('client.requests.index', ['view' => 'messages']))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('client/requests/index')
+            ->where('view', 'messages')
+            ->has('requests.data', 1)
+            ->where('requests.data.0.id', $fixture['firstRequest']->id)
+        );
 });

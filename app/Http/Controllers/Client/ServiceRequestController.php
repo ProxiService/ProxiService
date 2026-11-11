@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Client;
 
+use App\Enums\ServiceRequestStatus;
 use App\Http\Controllers\Controller;
 use App\Models\ProviderProfile;
 use App\Models\Service;
@@ -9,6 +10,9 @@ use App\Models\ServiceCommission;
 use App\Models\ServiceRequest as ServiceRequestModel;
 use App\Notifications\NewServiceRequestNotification;
 use App\Notifications\ServiceRequestStatusNotification;
+use App\Services\CommissionCalculator;
+use App\Services\PrePaymentContactGuard;
+use App\Services\UrgentRequestDispatcher;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -17,6 +21,57 @@ use Inertia\Response;
 
 class ServiceRequestController extends Controller
 {
+    public function urgentCreate(): Response
+    {
+        return Inertia::render('client/requests/urgent-create', [
+            'services' => Service::query()->with('category:id,name')
+                ->where('is_active', true)->whereHas('category', fn ($query) => $query->where('is_active', true))
+                ->orderBy('name')->get(['id', 'category_id', 'name'])
+                ->map(fn (Service $service): array => [
+                    'id' => $service->id,
+                    'name' => $service->name,
+                    'category' => $service->category?->name,
+                ]),
+        ]);
+    }
+
+    public function storeUrgent(Request $request, UrgentRequestDispatcher $dispatcher): RedirectResponse
+    {
+        $validated = $request->validate([
+            'service_id' => ['required', 'integer', 'exists:services,id'],
+            'description' => ['required', 'string', 'min:10', 'max:3000'],
+            'city' => ['required', 'string', 'max:100'],
+            'neighborhood' => ['required', 'string', 'max:100'],
+            'location_consent' => ['required', 'accepted'],
+            'latitude' => ['required', 'numeric', 'between:-90,90'],
+            'longitude' => ['required', 'numeric', 'between:-180,180'],
+        ]);
+        app(PrePaymentContactGuard::class)->ensureNoContactDetails($validated['description'], 'description');
+        $service = Service::query()->whereKey($validated['service_id'])->where('is_active', true)
+            ->whereHas('category', fn ($query) => $query->where('is_active', true))->firstOrFail();
+
+        $serviceRequest = new ServiceRequestModel;
+        $serviceRequest->client()->associate($request->user());
+        $serviceRequest->service()->associate($service);
+        $serviceRequest->fill([
+            'description' => $validated['description'],
+            'city' => $validated['city'],
+            'neighborhood' => $validated['neighborhood'],
+            'is_urgent' => true,
+        ]);
+        $serviceRequest->provider_profile_id = null;
+        $serviceRequest->urgent_latitude = (float) $validated['latitude'];
+        $serviceRequest->urgent_longitude = (float) $validated['longitude'];
+        $serviceRequest->urgent_expires_at = now()->addMinutes(UrgentRequestDispatcher::EXPIRE_AFTER_MINUTES);
+        $serviceRequest->urgent_dispatch_status = 'searching';
+        $serviceRequest->status = 'pending';
+        $serviceRequest->save();
+        $dispatcher->dispatch($serviceRequest->load('service'), UrgentRequestDispatcher::INITIAL_RADIUS_KM);
+
+        return to_route('client.requests.index')->with('success',
+            'Votre demande urgente est diffusée aux prestataires proches. Votre position précise reste privée.');
+    }
+
     /**
      * Vérifier que le service peut être demandé
      * auprès du prestataire sélectionné.
@@ -110,6 +165,8 @@ class ServiceRequestController extends Controller
             'is_urgent' => ['sometimes', 'boolean'],
         ]);
 
+        app(PrePaymentContactGuard::class)->ensureNoContactDetails($validated['description'], 'description');
+
         $serviceRequest = new ServiceRequestModel;
 
         // Ces relations sont définies côté serveur.
@@ -143,8 +200,9 @@ class ServiceRequestController extends Controller
     public function confirmCompletion(
         Request $request,
         ServiceRequestModel $serviceRequest,
+        CommissionCalculator $commissionCalculator,
     ): RedirectResponse {
-        DB::transaction(function () use ($request, $serviceRequest): void {
+        DB::transaction(function () use ($request, $serviceRequest, $commissionCalculator): void {
             $lockedRequest = ServiceRequestModel::query()
                 ->whereKey($serviceRequest->id)
                 ->lockForUpdate()
@@ -161,6 +219,8 @@ class ServiceRequestController extends Controller
                 409,
                 'Cette demande ne peut pas être confirmée dans son état actuel.',
             );
+            abort_if($lockedRequest->hasOpenDispute(), 409,
+                'Une prestation signalée ne peut pas être confirmée avant l’arbitrage.');
 
             $completedPayment = $lockedRequest->payments()
                 ->where('status', 'completed')
@@ -226,41 +286,21 @@ class ServiceRequestController extends Controller
                 'Le montant payé ne correspond pas au prix convenu pour cette prestation.',
             );
 
-            $commissionRate = (float) config(
-                'proxiservices.commission_rate',
-                10.0,
-            );
-
-            abort_if(
-                ! is_finite($commissionRate)
-                    || $commissionRate < 0
-                    || $commissionRate > 100,
-                500,
-                'Le taux de commission configuré est invalide.',
-            );
-
-            $commissionAmount = round(
-                $grossAmount * $commissionRate / 100,
-                2,
-            );
-
-            $providerAmount = round(
-                $grossAmount - $commissionAmount,
-                2,
-            );
+            $breakdown = $commissionCalculator->breakdown($grossAmount);
 
             $commission = new ServiceCommission([
                 'gross_amount' => $grossAmount,
-                'commission_rate' => $commissionRate,
-                'commission_amount' => $commissionAmount,
-                'provider_amount' => $providerAmount,
+                'commission_rate' => $breakdown['rate'],
+                'commission_amount' => $breakdown['commission'],
+                'provider_amount' => $breakdown['net'],
                 'collection_status' => 'pending',
                 'calculated_at' => now(),
             ]);
 
             $lockedRequest->commission()->save($commission);
 
-            $lockedRequest->status = 'completed';
+            abort_unless($lockedRequest->transitionTo(ServiceRequestStatus::Completed), 409,
+                'Cette demande ne peut pas passer à l’état terminé.');
             $lockedRequest->save();
         });
 

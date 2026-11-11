@@ -3,6 +3,7 @@
 use App\Models\Category;
 use App\Models\ProviderProfile;
 use App\Models\Service;
+use App\Models\ServicePayment;
 use App\Models\ServiceRequest as ServiceRequestModel;
 use App\Models\ServiceReview;
 use App\Models\User;
@@ -66,6 +67,19 @@ function createServiceReviewFeatureFixture(
     $serviceRequest->service()->associate($service);
     $serviceRequest->status = $status;
     $serviceRequest->save();
+
+    if ($status === 'completed') {
+        $payment = new ServicePayment([
+            'provider' => 'geniuspay',
+            'amount' => 12000,
+            'currency' => 'XOF',
+            'status' => 'completed',
+            'environment' => 'sandbox',
+            'paid_at' => now(),
+        ]);
+        $payment->client()->associate($client);
+        $serviceRequest->payments()->save($payment);
+    }
 
     return compact(
         'client',
@@ -177,6 +191,20 @@ test('un client ne peut pas laisser deux avis pour la même prestation', functio
         'rating' => 5,
         'comment' => 'Premier avis.',
     ]);
+});
+
+test('un avis exige un paiement confirmé en plus de la prestation terminée', function () {
+    $fixture = createServiceReviewFeatureFixture();
+    $fixture['serviceRequest']->payments()->delete();
+
+    $this->actingAs($fixture['client'])
+        ->post(route('client.requests.review.store', $fixture['serviceRequest']), [
+            'rating' => 5,
+            'comment' => 'Prestation terminée sans preuve de paiement.',
+        ])
+        ->assertStatus(409);
+
+    $this->assertDatabaseCount('service_reviews', 0);
 });
 
 test('la note doit être comprise entre 1 et 5', function () {

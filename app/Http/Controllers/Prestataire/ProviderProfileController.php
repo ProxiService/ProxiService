@@ -20,6 +20,10 @@ class ProviderProfileController extends Controller
     {
         $profile = $request->user()->providerProfile;
 
+        if ($profile !== null) {
+            $this->authorize('view', $profile);
+        }
+
         $services = Service::query()
             ->where('is_active', true)
             ->whereHas('category', function (Builder $query) {
@@ -43,6 +47,19 @@ class ProviderProfileController extends Controller
                 ->map(fn ($id) => (int) $id)
                 ->all()
             : [];
+        $selectedServicePrices = $profile
+            ? $profile->services()
+                ->get()
+                ->mapWithKeys(fn (Service $service): array => [
+                    (int) $service->id => $service->pivot->price !== null
+                        ? (float) $service->pivot->price
+                        : null,
+                ])
+                ->all()
+            : [];
+        $hasLocation = $profile !== null
+            && $profile->latitude !== null
+            && $profile->longitude !== null;
 
         return Inertia::render('prestataire/profile/edit', [
             'profile' => $profile?->only([
@@ -57,6 +74,9 @@ class ProviderProfileController extends Controller
             ]),
             'services' => $services,
             'selectedServiceIds' => $selectedServiceIds,
+            'selectedServicePrices' => $selectedServicePrices,
+            'commissionRate' => (float) config('proxiservices.commission_rate', 10.0),
+            'hasLocation' => $hasLocation,
         ]);
     }
 
@@ -78,6 +98,8 @@ class ProviderProfileController extends Controller
             'city' => ['required', 'string', 'max:100'],
             'neighborhood' => ['required', 'string', 'max:100'],
             'address' => ['nullable', 'string', 'max:1000'],
+            'latitude' => ['sometimes', 'nullable', 'numeric', 'between:-90,90'],
+            'longitude' => ['sometimes', 'nullable', 'numeric', 'between:-180,180'],
 
             'services' => ['sometimes', 'array'],
             'services.*' => [
@@ -98,6 +120,8 @@ class ProviderProfileController extends Controller
         $profile = $request->user()
             ->providerProfile()
             ->firstOrNew();
+
+        $this->authorize('update', $profile);
 
         $profile->fill($validated);
         $profile->save();

@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\ProviderReviewController;
 use App\Http\Controllers\Admin\ReviewReportController as AdminReviewReportController;
 use App\Http\Controllers\Admin\ServiceCommissionController as AdminServiceCommissionController;
+use App\Http\Controllers\Admin\ServiceRequestDisputeController as AdminServiceRequestDisputeController;
 use App\Http\Controllers\Client\CategoryController;
 use App\Http\Controllers\Client\DashboardController;
 use App\Http\Controllers\Client\MyServiceRequestsController;
@@ -16,13 +17,17 @@ use App\Http\Controllers\Client\ServiceReviewController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Prestataire\ProviderProfileController;
 use App\Http\Controllers\Prestataire\ServiceRequestController as PrestataireServiceRequestController;
+use App\Http\Controllers\PublicServiceLocationController;
 use App\Http\Controllers\ReviewReportController;
 use App\Http\Controllers\ServiceRequestConversationController;
+use App\Http\Controllers\ServiceRequestIssueController;
 use App\Http\Controllers\Webhooks\GeniusPayWebhookController;
+use App\Models\ProviderProfile;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response as InertiaResponse;
 
@@ -33,6 +38,54 @@ use Inertia\Response as InertiaResponse;
 */
 
 Route::inertia('/', 'welcome')->name('home');
+
+Route::get('informations/{slug}', function (string $slug): InertiaResponse {
+    $pages = [
+        'cgu' => ['Conditions d’utilisation', ['Éditeur de la plateforme', 'Création de compte et utilisation', 'Responsabilités et réclamations']],
+        'confidentialite' => ['Politique de confidentialité', ['Responsable et contact', 'Données traitées et finalités', 'Durées, destinataires et droits']],
+        'mentions-legales' => ['Mentions légales', ['Éditeur', 'Hébergement', 'Contact et propriété intellectuelle']],
+        'paiements-remboursements' => ['Paiements et remboursements', ['Moyens de paiement disponibles', 'Frais et commissions', 'Annulations, remboursements et reversements']],
+    ];
+    abort_unless(isset($pages[$slug]), 404);
+
+    return Inertia::render('legal/show', ['slug' => $slug, 'title' => $pages[$slug][0], 'sections' => $pages[$slug][1]]);
+})->name('legal.show');
+
+Route::get('sitemap.xml', function () {
+    $urls = [url('/')];
+    foreach (['cgu', 'confidentialite', 'mentions-legales', 'paiements-remboursements'] as $slug) {
+        $urls[] = url("/informations/{$slug}");
+    }
+    $profiles = ProviderProfile::query()
+        ->where('status', 'approved')
+        ->where('is_available', true)
+        ->whereNotNull('latitude')
+        ->whereNotNull('longitude')
+        ->whereNotNull('city')
+        ->with(['services' => fn ($query) => $query->where('services.is_active', true)->select('services.id', 'services.slug')])
+        ->get(['id', 'city']);
+    foreach ($profiles as $profile) {
+        foreach ($profile->services as $service) {
+            $urls[] = url("/services/{$service->slug}/a/".Str::slug($profile->city));
+        }
+    }
+    $urls = array_values(array_unique($urls));
+    $xml = '<?xml version="1.0" encoding="UTF-8"?>'."\n".'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">';
+    foreach ($urls as $pageUrl) {
+        $xml .= '<url><loc>'.e($pageUrl).'</loc></url>';
+    }
+
+    return response($xml.'</urlset>', 200, ['Content-Type' => 'application/xml; charset=UTF-8']);
+})->name('sitemap');
+
+Route::get('robots.txt', function () {
+    $robots = "User-agent: *\nAllow: /\nDisallow: /client/\nDisallow: /prestataire/\nDisallow: /admin/\nDisallow: /settings/\n\nSitemap: ".url('/sitemap.xml')."\n";
+
+    return response($robots, 200, ['Content-Type' => 'text/plain; charset=UTF-8']);
+})->name('robots');
+
+Route::get('services/{service:slug}/a/{zone}', [PublicServiceLocationController::class, 'show'])
+    ->name('public.services.location');
 
 Route::post(
     'webhooks/geniuspay',
@@ -72,7 +125,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post(
         'reviews/{serviceReview}/report',
         [ReviewReportController::class, 'store'],
-    )->name('reviews.report.store');
+    )->middleware('throttle:reports')->name('reviews.report.store');
 
     /*
     |--------------------------------------------------------------------------
@@ -104,6 +157,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
             Route::get('requests', MyServiceRequestsController::class)
                 ->name('requests.index');
+            Route::get('requests/urgent', [ServiceRequestController::class, 'urgentCreate'])
+                ->name('requests.urgent.create');
+            Route::post('requests/urgent', [ServiceRequestController::class, 'storeUrgent'])
+                ->middleware('throttle:requests')->name('requests.urgent.store');
 
             Route::get('search', SearchController::class)
                 ->name('search');
@@ -117,6 +174,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 ServiceProviderController::class,
                 'index',
             ])->name('services.providers');
+            Route::post('services/{service:slug}/providers', [
+                ServiceProviderController::class,
+                'index',
+            ])->middleware('throttle:30,1')->name('services.providers.search');
 
             Route::get(
                 'services/{service:slug}/providers/{providerProfile}',
@@ -136,12 +197,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::post(
                 'requests/{serviceRequest}/messages',
                 [ServiceRequestConversationController::class, 'store'],
-            )->name('requests.messages.store');
+            )->middleware('throttle:messages')->name('requests.messages.store');
 
             Route::post(
                 'services/{service:slug}/providers/{providerProfile}/request',
                 [ServiceRequestController::class, 'store']
-            )->name('services.providers.request.store');
+            )->middleware('throttle:requests')->name('services.providers.request.store');
 
             Route::post(
                 'requests/{serviceRequest}/review',
@@ -152,6 +213,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 'requests/{serviceRequest}/confirm-completion',
                 [ServiceRequestController::class, 'confirmCompletion'],
             )->name('requests.confirm-completion');
+
+            Route::post('requests/{serviceRequest}/cancel', [
+                ServiceRequestIssueController::class, 'cancel',
+            ])->name('requests.cancel');
+            Route::post('requests/{serviceRequest}/dispute', [
+                ServiceRequestIssueController::class, 'dispute',
+            ])->name('requests.dispute');
 
             Route::patch(
                 'requests/{serviceRequest}/quotes/{serviceQuote}/accept',
@@ -166,7 +234,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::post(
                 'requests/{serviceRequest}/payments',
                 [ServicePaymentController::class, 'store'],
-            )->name('requests.payments.store');
+            )->middleware('throttle:payments')->name('requests.payments.store');
 
             Route::get('payments/return', [
                 ServicePaymentController::class,
@@ -214,6 +282,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 PrestataireServiceRequestController::class,
                 'accept',
             ])->name('requests.accept');
+            Route::post('requests/{serviceRequest}/accept-urgent', [
+                PrestataireServiceRequestController::class, 'acceptUrgent',
+            ])->middleware('throttle:requests')->name('requests.accept-urgent');
 
             Route::get(
                 'requests/{serviceRequest}/messages',
@@ -223,7 +294,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::post(
                 'requests/{serviceRequest}/messages',
                 [ServiceRequestConversationController::class, 'store'],
-            )->name('requests.messages.store');
+            )->middleware('throttle:messages')->name('requests.messages.store');
 
             Route::patch('requests/{serviceRequest}/reject', [
                 PrestataireServiceRequestController::class,
@@ -240,6 +311,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 [PrestataireServiceRequestController::class, 'finish'],
             )->name('requests.finish');
 
+            Route::post('requests/{serviceRequest}/cancel', [
+                ServiceRequestIssueController::class, 'cancel',
+            ])->name('requests.cancel');
+            Route::post('requests/{serviceRequest}/dispute', [
+                ServiceRequestIssueController::class, 'dispute',
+            ])->name('requests.dispute');
+
             Route::post(
                 'requests/{serviceRequest}/quotes',
                 [App\Http\Controllers\Prestataire\ServiceQuoteController::class, 'store'],
@@ -252,12 +330,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
     |--------------------------------------------------------------------------
     */
 
-    Route::middleware('role:admin')
+    Route::middleware(['role:admin', 'admin.2fa'])
         ->prefix('admin')
         ->name('admin.')
         ->group(function () {
             Route::inertia('dashboard', 'admin/dashboard')
                 ->name('dashboard');
+
+            Route::post('requests/{serviceRequest}/dispute/resolve', [
+                ServiceRequestIssueController::class, 'resolve',
+            ])->name('requests.disputes.resolve');
+            Route::get('disputes', [AdminServiceRequestDisputeController::class, 'index'])
+                ->name('disputes.index');
 
             Route::get('notifications', [
                 NotificationController::class,

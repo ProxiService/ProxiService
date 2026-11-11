@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\ServiceQuoteStatus;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
@@ -28,6 +29,19 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 ])]
 class ServiceQuote extends Model
 {
+    public function transitionTo(ServiceQuoteStatus $next): bool
+    {
+        $current = ServiceQuoteStatus::tryFrom($this->status);
+
+        if ($current === null || ! $current->canTransitionTo($next)) {
+            return false;
+        }
+
+        $this->status = $next->value;
+
+        return true;
+    }
+
     protected function casts(): array
     {
         return [

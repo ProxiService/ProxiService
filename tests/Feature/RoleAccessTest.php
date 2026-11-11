@@ -20,7 +20,7 @@ test('users are redirected to the dashboard for their role', function () {
     $provider = User::factory()->create();
     $provider->forceFill(['role' => 'prestataire'])->save();
 
-    $admin = User::factory()->create();
+    $admin = User::factory()->withTwoFactor()->create();
     $admin->forceFill(['role' => 'admin'])->save();
 
     $this->actingAs($client)
@@ -79,7 +79,7 @@ test('providers cannot access client or admin dashboards', function () {
 });
 
 test('admins cannot access client or provider dashboards', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->withTwoFactor()->create();
 
     $user->forceFill([
         'role' => 'admin',

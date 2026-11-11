@@ -311,7 +311,95 @@ export default function AdminCommissionsIndex({
                             </div>
                         ) : (
                             <>
-                                <div className="overflow-x-auto">
+                                <div className="space-y-3 md:hidden">
+                                    {commissions.data.map((commission) => (
+                                        <article
+                                            key={commission.id}
+                                            className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+                                        >
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div>
+                                                    <h3 className="font-semibold text-slate-900">
+                                                        {
+                                                            commission.service_name
+                                                        }
+                                                    </h3>
+                                                    <p className="mt-1 text-xs text-slate-600">
+                                                        Demande n°{' '}
+                                                        {
+                                                            commission.service_request_id
+                                                        }
+                                                    </p>
+                                                </div>
+                                                <span
+                                                    className={`rounded-full px-2.5 py-1 text-xs font-semibold ${getStatusClass(commission.collection_status)}`}
+                                                >
+                                                    {
+                                                        commission.collection_status_label
+                                                    }
+                                                </span>
+                                            </div>
+                                            <p className="mt-3 text-sm text-slate-700">
+                                                {commission.client_name}{' '}
+                                                <span aria-hidden="true">
+                                                    ·
+                                                </span>{' '}
+                                                {commission.provider_name}
+                                            </p>
+                                            <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                                                <div>
+                                                    <dt className="text-xs text-slate-600">
+                                                        Prix convenu
+                                                    </dt>
+                                                    <dd className="mt-1 font-semibold">
+                                                        {formatMoney(
+                                                            commission.gross_amount,
+                                                        )}
+                                                    </dd>
+                                                </div>
+                                                <div>
+                                                    <dt className="text-xs text-slate-600">
+                                                        Taux
+                                                    </dt>
+                                                    <dd className="mt-1 font-semibold">
+                                                        {formatRate(
+                                                            commission.commission_rate,
+                                                        )}
+                                                    </dd>
+                                                </div>
+                                                <div>
+                                                    <dt className="text-xs text-slate-600">
+                                                        Commission
+                                                    </dt>
+                                                    <dd className="mt-1 font-semibold">
+                                                        {formatMoney(
+                                                            commission.commission_amount,
+                                                        )}
+                                                    </dd>
+                                                </div>
+                                                <div>
+                                                    <dt className="text-xs text-slate-600">
+                                                        Part prestataire
+                                                    </dt>
+                                                    <dd className="mt-1 font-semibold">
+                                                        {formatMoney(
+                                                            commission.provider_amount,
+                                                        )}
+                                                    </dd>
+                                                </div>
+                                            </dl>
+                                            {commission.is_reversed && (
+                                                <p className="mt-3 rounded-lg bg-amber-50 p-2 text-sm text-amber-900">
+                                                    Commission annulée
+                                                    {commission.reversal_reason
+                                                        ? ` : ${commission.reversal_reason}`
+                                                        : ''}
+                                                </p>
+                                            )}
+                                        </article>
+                                    ))}
+                                </div>
+                                <div className="hidden overflow-x-auto md:block">
                                     <table className="w-full min-w-[1000px] border-collapse text-left text-sm">
                                         <thead className="bg-gray-50 text-xs tracking-wide text-gray-500 uppercase">
                                             <tr>

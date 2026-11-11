@@ -1,4 +1,5 @@
 import { Head, useForm } from '@inertiajs/react';
+import { useState } from 'react';
 import {
     BriefcaseBusiness,
     CheckCircle2,
@@ -37,6 +38,9 @@ type Props = {
     profile: ProviderProfile | null;
     services: ServiceItem[];
     selectedServiceIds: number[];
+    selectedServicePrices: Record<number, number | null>;
+    hasLocation: boolean;
+    commissionRate: number;
 };
 
 function formatPrice(price: string | number): string {
@@ -62,7 +66,11 @@ export default function EditProviderProfile({
     profile,
     services,
     selectedServiceIds,
+    selectedServicePrices,
+    hasLocation,
+    commissionRate,
 }: Props) {
+    const [locationMessage, setLocationMessage] = useState('');
     const form = useForm({
         business_name: profile?.business_name ?? '',
         bio: profile?.bio ?? '',
@@ -72,11 +80,45 @@ export default function EditProviderProfile({
         neighborhood: profile?.neighborhood ?? '',
         address: profile?.address ?? '',
         services: selectedServiceIds,
+        latitude: null as number | null,
+        longitude: null as number | null,
     });
+
+    function captureWorkLocation() {
+        if (!navigator.geolocation) {
+            setLocationMessage(
+                'Ce navigateur ne fournit pas la géolocalisation.',
+            );
+            return;
+        }
+
+        setLocationMessage('Demande de permission de localisation…');
+        navigator.geolocation.getCurrentPosition(
+            ({ coords }) => {
+                form.setData('latitude', coords.latitude);
+                form.setData('longitude', coords.longitude);
+                setLocationMessage(
+                    'Position enregistrée pour le classement par proximité.',
+                );
+            },
+            () =>
+                setLocationMessage(
+                    'Permission refusée ou position indisponible.',
+                ),
+            { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 },
+        );
+    }
 
     function submit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
 
+        form.transform((data) => {
+            const { latitude, longitude, ...profileData } = data;
+
+            return latitude === null || longitude === null
+                ? profileData
+                : { ...profileData, latitude, longitude };
+        });
         form.put('/prestataire/profile');
     }
 
@@ -268,6 +310,9 @@ export default function EditProviderProfile({
                                     const checked = form.data.services.includes(
                                         service.id,
                                     );
+                                    const grossPrice =
+                                        selectedServicePrices[service.id] ??
+                                        service.base_price;
 
                                     return (
                                         <label
@@ -322,12 +367,31 @@ export default function EditProviderProfile({
 
                                                     {service.pricing_type ===
                                                         'fixed' &&
-                                                    service.base_price !== null
+                                                    grossPrice !== null
                                                         ? formatPrice(
-                                                              service.base_price,
+                                                              grossPrice,
                                                           )
                                                         : 'Sur devis'}
                                                 </span>
+
+                                                {service.pricing_type ===
+                                                    'fixed' &&
+                                                    grossPrice !== null && (
+                                                        <span className="mt-1 block text-xs text-muted-foreground">
+                                                            Net estimé après
+                                                            commission (
+                                                            {commissionRate} %)
+                                                            :{' '}
+                                                            {formatPrice(
+                                                                Number(
+                                                                    grossPrice,
+                                                                ) *
+                                                                    (1 -
+                                                                        commissionRate /
+                                                                            100),
+                                                            )}
+                                                        </span>
+                                                    )}
 
                                                 {service.estimated_duration_minutes !==
                                                     null && (
@@ -458,6 +522,34 @@ export default function EditProviderProfile({
                                     </p>
                                 )}
                             </div>
+                        </div>
+
+                        <div className="mt-5 rounded-lg border p-4">
+                            <p className="text-sm font-medium">
+                                Position du lieu d’activité
+                            </p>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                                Autorise la géolocalisation pour permettre aux
+                                clients de connaître ta distance approximative.
+                                Les coordonnées précises ne sont pas affichées.
+                            </p>
+                            <button
+                                type="button"
+                                onClick={captureWorkLocation}
+                                className="mt-3 min-h-11 rounded-lg border px-4 py-2 text-sm font-medium"
+                            >
+                                {hasLocation
+                                    ? 'Mettre à jour ma position'
+                                    : 'Partager ma position d’activité'}
+                            </button>
+                            {locationMessage && (
+                                <p
+                                    role="status"
+                                    className="mt-2 text-sm text-muted-foreground"
+                                >
+                                    {locationMessage}
+                                </p>
+                            )}
                         </div>
                     </section>
 

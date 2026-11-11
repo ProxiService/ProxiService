@@ -10,6 +10,52 @@ permissions:
   contents: read
 
 jobs:
+  postgres-tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: proxiservices_test
+          POSTGRES_USER: proxiservices
+          POSTGRES_PASSWORD: proxiservices
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U proxiservices -d proxiservices_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        with:
+          php-version: '8.5'
+          extensions: pdo_pgsql
+          tools: composer:v2
+          coverage: none
+
+      - name: Install application dependencies
+        run: |
+          composer install --no-interaction --prefer-dist
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Pest on PostgreSQL
+        env:
+          DB_CONNECTION: pgsql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 5432
+          DB_DATABASE: proxiservices_test
+          DB_USERNAME: proxiservices
+          DB_PASSWORD: proxiservices
+        run: vendor/bin/pest --no-progress
+
   ci:
     runs-on: ubuntu-latest
 
@@ -32,7 +78,30 @@ jobs:
           node-version: '22'
 
       - name: Setup Application
-        run: composer setup
+        run: |
+          composer install --no-interaction --prefer-dist
+          cp .env.example .env
+          php artisan key:generate
+          npm ci
+          npm run build
 
-      - name: Run CI Checks
-        run: composer ci:check
+      - name: Pest
+        run: vendor/bin/pest --no-progress
+
+      - name: PHPStan
+        run: vendor/bin/phpstan analyse --memory-limit=1G --no-progress
+
+      - name: Pint
+        run: vendor/bin/pint --parallel --test
+
+      - name: TypeScript
+        run: npm run types:check
+
+      - name: Frontend lint and format
+        run: npm run check -- resources/js
+
+      - name: Composer dependency audit
+        run: composer audit --locked
+
+      - name: npm dependency audit
+        run: npm audit --audit-level=moderate

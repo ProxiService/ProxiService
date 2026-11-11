@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\ServiceReviewReport;
+use App\Services\AdminAuditLogger;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -16,6 +18,8 @@ class ReviewReportController extends Controller
      */
     public function index(): Response
     {
+        $this->authorize('viewAny', ServiceReviewReport::class);
+
         $reports = ServiceReviewReport::query()
             ->where('status', 'pending')
             ->with([
@@ -66,16 +70,23 @@ class ReviewReportController extends Controller
      * Rejeter un signalement sans masquer l’avis.
      */
     public function dismiss(
+        Request $request,
         ServiceReviewReport $serviceReviewReport,
+        AdminAuditLogger $audit,
     ): RedirectResponse {
+        $this->authorize('view', $serviceReviewReport);
         abort_unless(
             $serviceReviewReport->status === 'pending',
             409,
             'Ce signalement a déjà été traité.',
         );
 
-        $serviceReviewReport->status = 'dismissed';
-        $serviceReviewReport->save();
+        DB::transaction(function () use ($request, $serviceReviewReport, $audit): void {
+            $before = ['status' => $serviceReviewReport->status];
+            $serviceReviewReport->status = 'dismissed';
+            $serviceReviewReport->save();
+            $audit->record($request, 'review_report.dismissed', $serviceReviewReport, $before, ['status' => 'dismissed']);
+        });
 
         return redirect()
             ->route('admin.review-reports.index')
@@ -86,16 +97,23 @@ class ReviewReportController extends Controller
      * Masquer l’avis et traiter les signalements encore en attente.
      */
     public function hideReview(
+        Request $request,
         ServiceReviewReport $serviceReviewReport,
+        AdminAuditLogger $audit,
     ): RedirectResponse {
+        $this->authorize('view', $serviceReviewReport);
         abort_unless(
             $serviceReviewReport->status === 'pending',
             409,
             'Ce signalement a déjà été traité.',
         );
 
-        DB::transaction(function () use ($serviceReviewReport): void {
+        DB::transaction(function () use ($request, $serviceReviewReport, $audit): void {
             $review = $serviceReviewReport->review;
+            $before = [
+                'report_status' => $serviceReviewReport->status,
+                'review_is_visible' => $review->is_visible,
+            ];
 
             $review->is_visible = false;
             $review->save();
@@ -103,6 +121,10 @@ class ReviewReportController extends Controller
             $review->reports()
                 ->where('status', 'pending')
                 ->update(['status' => 'actioned']);
+            $audit->record($request, 'review_report.review_hidden', $serviceReviewReport, $before, [
+                'report_status' => 'actioned',
+                'review_is_visible' => false,
+            ]);
         });
 
         return redirect()

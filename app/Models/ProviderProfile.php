@@ -10,6 +10,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * @property-read ProviderProfileService $pivot
+ * @property-read int $visible_reviews_count
+ * @property-read float|null $visible_reviews_avg_rating
  */
 #[Fillable([
     'business_name',
@@ -62,5 +64,11 @@ class ProviderProfile extends Model
     public function reviews(): HasMany
     {
         return $this->hasMany(ServiceReview::class);
+    }
+
+    /** @return HasMany<UrgentServiceRequestMatch, $this> */
+    public function urgentRequestMatches(): HasMany
+    {
+        return $this->hasMany(UrgentServiceRequestMatch::class);
     }
 }

@@ -3,6 +3,7 @@
 use App\Models\Category;
 use App\Models\ProviderProfile;
 use App\Models\Service;
+use App\Models\ServicePayment;
 use App\Models\ServiceRequest as ServiceRequestModel;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -99,6 +100,7 @@ test('le client peut consulter la conversation après acceptation', function () 
                 'Artisan Messagerie',
             )
             ->where('currentUserId', $fixture['client']->id)
+            ->where('conversation.address', null)
             ->has('messages', 0)
         );
 });
@@ -258,4 +260,70 @@ test('la conversation est inaccessible tant que la demande est en attente', func
         ->assertNotFound();
 
     $this->assertDatabaseCount('service_request_messages', 0);
+});
+
+test('les coordonnées sont bloquées avant paiement et autorisées après confirmation', function () {
+    $fixture = createConversationMessagingFixture();
+    $url = route('client.requests.messages.store', $fixture['serviceRequest']);
+
+    foreach ([
+        'Appelle-moi au +225 07 12 34 56 78',
+        'Écris à artisan@example.ci',
+        'Consulte https://exemple.ci/devis',
+        'Mon numéro est 0 7 1 2 3 4 5 6 7 8',
+    ] as $body) {
+        $this->actingAs($fixture['client'])
+            ->post($url, ['body' => $body])
+            ->assertSessionHasErrors('body');
+    }
+
+    $this->assertDatabaseCount('service_request_messages', 0);
+    $this->actingAs($fixture['client'])
+        ->post($url, ['body' => 'Je passerai le 2026-11-11 vers 10 h.'])
+        ->assertRedirect(route('client.requests.messages.show', $fixture['serviceRequest']));
+
+    $this->assertDatabaseHas('service_request_messages', [
+        'service_request_id' => $fixture['serviceRequest']->id,
+        'body' => 'Je passerai le 2026-11-11 vers 10 h.',
+    ]);
+
+    $payment = new ServicePayment([
+        'provider' => 'geniuspay',
+        'provider_reference' => 'paid-chat-'.$fixture['serviceRequest']->id,
+        'amount' => 20000,
+        'currency' => 'XOF',
+        'status' => 'completed',
+        'environment' => 'sandbox',
+    ]);
+    $payment->client()->associate($fixture['client']);
+    $fixture['serviceRequest']->payments()->save($payment);
+
+    $this->actingAs($fixture['client'])
+        ->post($url, ['body' => 'Appelle-moi au +225 07 12 34 56 78'])
+        ->assertRedirect(route('client.requests.messages.show', $fixture['serviceRequest']));
+
+    $this->actingAs($fixture['client'])
+        ->get(route('client.requests.messages.show', $fixture['serviceRequest']))
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('conversation.address', 'Près du marché'));
+
+    $this->assertDatabaseHas('service_request_messages', [
+        'service_request_id' => $fixture['serviceRequest']->id,
+        'body' => 'Appelle-moi au +225 07 12 34 56 78',
+    ]);
+});
+
+test('la messagerie est limitée pour empêcher le spam', function () {
+    $fixture = createConversationMessagingFixture();
+    $url = route('client.requests.messages.store', $fixture['serviceRequest']);
+
+    foreach (range(1, 12) as $index) {
+        $this->actingAs($fixture['client'])
+            ->post($url, ['body' => 'Message de test numéro '.$index])
+            ->assertRedirect();
+    }
+
+    $this->actingAs($fixture['client'])
+        ->post($url, ['body' => 'Message au-delà de la limite'])
+        ->assertStatus(429);
 });

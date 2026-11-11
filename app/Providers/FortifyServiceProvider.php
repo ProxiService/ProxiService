@@ -53,6 +53,8 @@ class FortifyServiceProvider extends ServiceProvider
             'status' => $request->session()->get('status'),
         ]));
 
+        Fortify::twoFactorChallengeView(fn () => Inertia::render('auth/two-factor-challenge'));
+
         Fortify::resetPasswordView(fn (Request $request) => Inertia::render('auth/reset-password', [
             'email' => $request->email,
             'token' => $request->route('token'),
@@ -91,5 +93,17 @@ class FortifyServiceProvider extends ServiceProvider
                 ($request->input('credential.id') ?: $request->session()->getId()).'|'.$request->ip(),
             );
         });
+
+        RateLimiter::for('messages', fn (Request $request) => Limit::perMinute(12)
+            ->by($request->user()->id.'|'.$request->ip()));
+
+        RateLimiter::for('requests', fn (Request $request) => Limit::perMinute(5)
+            ->by($request->user()->id.'|'.$request->ip()));
+
+        RateLimiter::for('reports', fn (Request $request) => Limit::perMinute(5)
+            ->by($request->user()->id.'|'.$request->ip()));
+
+        RateLimiter::for('payments', fn (Request $request) => Limit::perMinute(3)
+            ->by($request->user()->id.'|'.$request->ip()));
     }
 }

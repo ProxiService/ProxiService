@@ -7,6 +7,7 @@ use App\Models\ServicePayment;
 use App\Models\ServiceRequest;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Inertia\Testing\AssertableInertia as Assert;
 
 uses(RefreshDatabase::class);
 
@@ -120,6 +121,49 @@ test('le client peut accepter un devis et le demande passe en accepted', functio
         'id' => $fixture['serviceRequest']->id,
         'status' => 'accepted',
     ]);
+});
+
+test('un seul devis peut être accepté et le montant net est visible avant acceptation', function () {
+    $fixture = createQuoteFixture('accepted');
+    $pendingQuote = $fixture['serviceRequest']->quotes()->create([
+        'provider_profile_id' => $fixture['profile']->id,
+        'amount' => 25000,
+        'description' => 'Installation complète de la pompe et contrôle final.',
+        'status' => 'pending',
+    ]);
+
+    $this->actingAs($fixture['provider'])
+        ->get(route('prestataire.requests.index'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('commissionRate', 10)
+            ->where('requests.data.0.quotes.0.commission.commission', 2500)
+            ->where('requests.data.0.quotes.0.commission.net', 22500)
+        );
+
+    $this->actingAs($fixture['client'])
+        ->patch(route('client.requests.quotes.accept', [
+            'serviceRequest' => $fixture['serviceRequest'],
+            'serviceQuote' => $pendingQuote,
+        ]))
+        ->assertRedirect(route('client.requests.index'));
+
+    $secondQuote = $fixture['serviceRequest']->quotes()->create([
+        'provider_profile_id' => $fixture['profile']->id,
+        'amount' => 27000,
+        'description' => 'Installation alternative avec contrôle de pression.',
+        'status' => 'pending',
+    ]);
+
+    $this->actingAs($fixture['client'])
+        ->patch(route('client.requests.quotes.accept', [
+            'serviceRequest' => $fixture['serviceRequest'],
+            'serviceQuote' => $secondQuote,
+        ]))
+        ->assertStatus(409);
+
+    $this->assertDatabaseHas('service_quotes', ['id' => $pendingQuote->id, 'status' => 'accepted']);
+    $this->assertDatabaseHas('service_quotes', ['id' => $secondQuote->id, 'status' => 'pending']);
 });
 
 test('le prestataire ne peut pas démarrer une demande quote sans devis accepté', function () {

@@ -33,6 +33,14 @@ test('new users can register as clients', function () {
     ]);
 });
 
+test('la création de compte est limitée par adresse IP', function () {
+    foreach (range(1, 10) as $attempt) {
+        $this->from('/')->post(route('register.store'), [])->assertRedirect();
+    }
+
+    $this->from('/')->post(route('register.store'), [])->assertStatus(429);
+});
+
 test('new users can access the dashboard without email verification locally', function () {
     config(['fortify.email_verification_required' => false]);
     Notification::fake();
