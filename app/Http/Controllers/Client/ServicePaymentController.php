@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers\Client;
 
+use App\Contracts\PaymentGateway;
 use App\Http\Controllers\Controller;
 use App\Models\ServicePayment;
 use App\Models\ServiceRequest as ServiceRequestModel;
-use App\Services\GeniusPayCheckoutService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Symfony\Component\HttpFoundation\Response;
@@ -20,79 +22,79 @@ class ServicePaymentController extends Controller
     public function store(
         Request $request,
         ServiceRequestModel $serviceRequest,
-        GeniusPayCheckoutService $geniusPay,
+        PaymentGateway $paymentGateway,
     ): Response {
-        abort_unless(
-            (int) $serviceRequest->client_id === (int) $request->user()->id,
-            404,
-            'Demande introuvable.',
-        );
+        abort_unless(Gate::allows('manageAsClient', $serviceRequest), 404, 'Demande introuvable.');
+        abort_if($serviceRequest->is_urgent, 409, 'Le paiement des demandes urgentes reste désactivé tant que le fournisseur financier n’est pas validé.');
 
-        abort_unless(
-            $serviceRequest->status === 'accepted',
-            409,
-            'Le paiement est possible uniquement pour une demande acceptée.',
-        );
+        $result = DB::transaction(function () use ($serviceRequest, $request): array {
+            $lockedRequest = ServiceRequestModel::query()
+                ->whereKey($serviceRequest->id)
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        $serviceRequest->load([
-            'service',
-            'providerProfile',
-        ]);
+            abort_unless(
+                (int) $lockedRequest->client_id === (int) $request->user()->id,
+                404,
+                'Demande introuvable.',
+            );
+            abort_if($lockedRequest->is_urgent, 409, 'Le paiement des demandes urgentes reste désactivé.');
+            abort_unless(
+                $lockedRequest->status === 'accepted',
+                409,
+                'Le paiement est possible uniquement pour une demande acceptée.',
+            );
+            abort_if($lockedRequest->hasOpenDispute(), 409,
+                'Le paiement est bloqué pendant le traitement du signalement.');
+            $lockedRequest->load(['service', 'providerProfile']);
+            $amount = $this->resolveAmount($lockedRequest);
+            abort_unless($amount >= 200, 409,
+                'Le montant de cette prestation est inférieur au minimum accepté par GeniusPay.');
 
-        $amount = $this->resolveAmount($serviceRequest);
+            abort_unless(
+                ! $lockedRequest->payments()->where('status', 'completed')->exists(),
+                409,
+                'Cette prestation possède déjà un paiement confirmé.',
+            );
 
-        abort_unless(
-            $amount >= 200,
-            409,
-            'Le montant de cette prestation est inférieur au minimum accepté par GeniusPay.',
-        );
+            $activePayment = $lockedRequest->payments()
+                ->whereIn('status', ['pending', 'processing'])
+                ->latest()
+                ->first();
+            if ($activePayment !== null) {
+                if ($activePayment->checkout_url && $activePayment->environment === config(
+                    'services.geniuspay.environment', 'sandbox',
+                )) {
+                    return ['payment' => $activePayment, 'reused' => true];
+                }
 
-        if (
-            $serviceRequest->payments()
-                ->where('status', 'completed')
-                ->exists()
-        ) {
-            abort(409, 'Cette prestation possède déjà un paiement confirmé.');
-        }
-
-        $activePayment = $serviceRequest->payments()
-            ->whereIn('status', ['pending', 'processing'])
-            ->latest()
-            ->first();
-
-        if ($activePayment !== null) {
-            if (
-                $activePayment->checkout_url
-                && $activePayment->environment === config(
-                    'services.geniuspay.environment',
-                    'sandbox',
-                )
-            ) {
-                return Inertia::location($activePayment->checkout_url);
+                abort(409, 'Une tentative de paiement existe déjà. Attends son résultat avant de réessayer.');
             }
 
-            abort(
-                409,
-                'Une tentative de paiement existe déjà. Attends son résultat avant de réessayer.',
-            );
+            $payment = new ServicePayment([
+                'provider' => 'geniuspay',
+                'amount' => $amount,
+                'currency' => 'XOF',
+                'status' => 'pending',
+                'environment' => config('services.geniuspay.environment', 'sandbox'),
+            ]);
+            $payment->client()->associate($request->user());
+            $lockedRequest->payments()->save($payment);
+
+            return ['payment' => $payment, 'reused' => false];
+        });
+
+        /** @var ServicePayment $payment */
+        $payment = $result['payment'];
+
+        if ($result['reused']) {
+            return Inertia::location($payment->checkout_url);
         }
 
-        $payment = new ServicePayment([
-            'provider' => 'geniuspay',
-            'amount' => $amount,
-            'currency' => 'XOF',
-            'status' => 'pending',
-            'environment' => config(
-                'services.geniuspay.environment',
-                'sandbox',
-            ),
-        ]);
-
-        $payment->client()->associate($request->user());
-        $serviceRequest->payments()->save($payment);
+        $serviceRequest->load(['service', 'providerProfile']);
 
         try {
-            $checkout = $geniusPay->createCheckout(
+            $checkout = $paymentGateway->createCheckout(
                 $payment,
                 $serviceRequest,
                 $request->user(),

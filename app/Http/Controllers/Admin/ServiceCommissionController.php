@@ -15,29 +15,31 @@ class ServiceCommissionController extends Controller
      */
     public function index(): Response
     {
+        $this->authorize('viewAny', ServiceCommission::class);
+
         $totals = ServiceCommission::query()
             ->toBase()
             ->selectRaw('COUNT(*) as total_commissions')
             ->selectRaw(
-                'COALESCE(SUM(CASE WHEN is_reversed = 0 THEN gross_amount ELSE 0 END), 0) as gross_total'
+                'COALESCE(SUM(CASE WHEN is_reversed = FALSE THEN gross_amount ELSE 0 END), 0) as gross_total'
             )
             ->selectRaw(
-                'COALESCE(SUM(CASE WHEN is_reversed = 0 THEN commission_amount ELSE 0 END), 0) as commission_total'
+                'COALESCE(SUM(CASE WHEN is_reversed = FALSE THEN commission_amount ELSE 0 END), 0) as commission_total'
             )
             ->selectRaw(
-                'COALESCE(SUM(CASE WHEN is_reversed = 0 THEN provider_amount ELSE 0 END), 0) as provider_total'
+                'COALESCE(SUM(CASE WHEN is_reversed = FALSE THEN provider_amount ELSE 0 END), 0) as provider_total'
             )
             ->selectRaw(
-                "COALESCE(SUM(CASE WHEN collection_status = 'pending' AND is_reversed = 0 THEN commission_amount ELSE 0 END), 0) as pending_total"
+                "COALESCE(SUM(CASE WHEN collection_status = 'pending' AND is_reversed = FALSE THEN commission_amount ELSE 0 END), 0) as pending_total"
             )
             ->selectRaw(
-                'COALESCE(SUM(CASE WHEN is_reversed = 1 THEN commission_amount ELSE 0 END), 0) as reversed_total'
+                'COALESCE(SUM(CASE WHEN is_reversed = TRUE THEN commission_amount ELSE 0 END), 0) as reversed_total'
             )
             ->selectRaw(
-                'COALESCE(SUM(CASE WHEN is_reversed = 1 THEN gross_amount ELSE 0 END), 0) as reversed_gross_total'
+                'COALESCE(SUM(CASE WHEN is_reversed = TRUE THEN gross_amount ELSE 0 END), 0) as reversed_gross_total'
             )
             ->selectRaw(
-                'COALESCE(SUM(CASE WHEN is_reversed = 1 THEN 1 ELSE 0 END), 0) as reversed_count'
+                'COALESCE(SUM(CASE WHEN is_reversed = TRUE THEN 1 ELSE 0 END), 0) as reversed_count'
             )
             ->first();
 

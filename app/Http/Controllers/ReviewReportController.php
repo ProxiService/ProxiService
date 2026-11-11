@@ -2,20 +2,19 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreReviewReportRequest;
 use App\Models\ServiceReview;
 use App\Models\ServiceReviewReport;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Gate;
 
 class ReviewReportController extends Controller
 {
     public function store(
-        Request $request,
+        StoreReviewReportRequest $request,
         ServiceReview $serviceReview,
     ): RedirectResponse {
-        abort_unless($serviceReview->is_visible, 404);
-
+        abort_unless(Gate::allows('report', $serviceReview), 404);
         abort_if(
             (int) $serviceReview->client_id === (int) $request->user()->id,
             403,
@@ -30,20 +29,7 @@ class ReviewReportController extends Controller
             'Tu as déjà signalé cet avis.',
         );
 
-        $validated = $request->validate([
-            'reason' => [
-                'required',
-                'string',
-                Rule::in([
-                    'spam',
-                    'abusive',
-                    'false_information',
-                    'conflict_of_interest',
-                    'other',
-                ]),
-            ],
-            'details' => ['nullable', 'string', 'max:2000'],
-        ]);
+        $validated = $request->validated();
 
         $report = new ServiceReviewReport([
             'reason' => $validated['reason'],

@@ -20,6 +20,7 @@ class SecurityController extends Controller
     {
         $props = [
             'canManagePasskeys' => Features::canManagePasskeys(),
+            'canManageTwoFactor' => Features::canManageTwoFactorAuthentication(),
             'passkeys' => Features::canManagePasskeys()
                 ? $request->user()
                     ->passkeys()
@@ -38,6 +39,18 @@ class SecurityController extends Controller
                 : [],
             'passwordRules' => Password::defaults()->toPasswordRulesString(),
         ];
+
+        if (Features::canManageTwoFactorAuthentication()) {
+            $props['twoFactorEnabled'] = $request->user()->two_factor_secret !== null;
+            $props['twoFactorConfirmed'] = $request->user()->two_factor_confirmed_at !== null;
+            $props['twoFactorRecoveryCodes'] = $request->user()->two_factor_confirmed_at !== null
+                ? $request->user()->recoveryCodes()
+                : [];
+            $props['requiresConfirmation'] = Features::optionEnabled(
+                Features::twoFactorAuthentication(),
+                'confirm',
+            );
+        }
 
         return Inertia::render('settings/security', $props);
     }

@@ -85,6 +85,13 @@ export default function ClientDashboard({ categories }: ClientDashboardProps) {
                     </div>
                 </section>
 
+                <Link
+                    href="/client/requests/urgent"
+                    className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-red-600 px-5 py-3 font-semibold text-white shadow-sm hover:bg-red-700"
+                >
+                    <span aria-hidden="true">⚡</span> Décrire une urgence
+                </Link>
+
                 {/* Catégories chargées depuis Laravel */}
                 <section id="services" className="scroll-mt-8">
                     <div className="mb-4">

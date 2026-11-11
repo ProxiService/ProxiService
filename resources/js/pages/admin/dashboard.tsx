@@ -73,10 +73,16 @@ const managementItems = [
         href: adminCommissions(),
     },
     {
-        title: 'Litiges et signalements',
-        description: 'Examiner les problèmes signalés.',
+        title: 'Signalements d’avis',
+        description: 'Examiner les signalements d’avis publiés.',
         icon: AlertTriangle,
         href: reviewReports(),
+    },
+    {
+        title: 'Litiges de prestations',
+        description: 'Arbitrer les demandes métier signalées.',
+        icon: AlertTriangle,
+        href: '/admin/disputes',
     },
 ];
 

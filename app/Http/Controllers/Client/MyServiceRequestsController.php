@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ServicePayment;
 use App\Models\ServiceQuote;
 use App\Models\ServiceRequest as ServiceRequestModel;
+use App\Services\CommissionCalculator;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -15,10 +16,16 @@ class MyServiceRequestsController extends Controller
     /**
      * Afficher uniquement les demandes du client connecté.
      */
-    public function __invoke(Request $request): Response
+    public function __invoke(Request $request, CommissionCalculator $commissionCalculator): Response
     {
-        $serviceRequests = ServiceRequestModel::query()
-            ->where('client_id', $request->user()->id)
+        $view = $request->query('view') === 'messages' ? 'messages' : 'requests';
+        $query = ServiceRequestModel::query()->where('client_id', $request->user()->id);
+
+        if ($view === 'messages') {
+            $query->whereIn('status', ['accepted', 'in_progress', 'awaiting_confirmation', 'completed']);
+        }
+
+        $serviceRequests = $query
             ->with([
                 'service:id,name,slug,pricing_type,base_price',
                 'providerProfile:id,user_id,business_name,city,neighborhood',
@@ -31,7 +38,7 @@ class MyServiceRequestsController extends Controller
             ->latest()
             ->paginate(10)
             ->through(
-                function (ServiceRequestModel $serviceRequest): array {
+                function (ServiceRequestModel $serviceRequest) use ($commissionCalculator): array {
                     $service = $serviceRequest->service;
 
                     $providerService = $serviceRequest->providerProfile
@@ -61,7 +68,8 @@ class MyServiceRequestsController extends Controller
                         }
                     }
 
-                    $paymentAvailable = $serviceRequest->status === 'accepted'
+                    $paymentAvailable = ! $serviceRequest->is_urgent
+                        && $serviceRequest->status === 'accepted'
                         && $paymentAmount !== null
                         && $paymentAmount >= 200;
 
@@ -81,7 +89,12 @@ class MyServiceRequestsController extends Controller
                         'scheduled_at' => $serviceRequest->scheduled_at
                             ?->format('d/m/Y H:i'),
                         'is_urgent' => $serviceRequest->is_urgent,
+                        'urgent_dispatch_status' => $serviceRequest->urgent_dispatch_status,
+                        'urgent_expires_at' => $serviceRequest->urgent_expires_at?->toIso8601String(),
                         'status' => $serviceRequest->status,
+                        'dispute_status' => $serviceRequest->dispute_status,
+                        'dispute_reason' => $serviceRequest->dispute_reason,
+                        'dispute_resolution' => $serviceRequest->dispute_resolution,
                         'created_at' => $serviceRequest->created_at
                             ?->format('d/m/Y H:i'),
                         'review' => $serviceRequest->review
@@ -108,14 +121,21 @@ class MyServiceRequestsController extends Controller
                                     ?->format('d/m/Y H:i'),
                                 'responded_at' => $quote->responded_at
                                     ?->format('d/m/Y H:i'),
+                                'commission' => $commissionCalculator->breakdown((float) $quote->amount),
                             ])
                             ->values(),
 
-                        'provider' => [
+                        'provider' => $serviceRequest->providerProfile ? [
                             'name' => $serviceRequest->providerProfile->business_name
                                 ?: $serviceRequest->providerProfile->user->name,
                             'city' => $serviceRequest->providerProfile->city,
                             'neighborhood' => $serviceRequest->providerProfile->neighborhood,
+                        ] : [
+                            'name' => $serviceRequest->urgent_dispatch_status === 'no_candidates'
+                                ? 'Aucun prestataire disponible à proximité'
+                                : 'Recherche de prestataires en cours',
+                            'city' => $serviceRequest->city,
+                            'neighborhood' => $serviceRequest->neighborhood,
                         ],
 
                         'payment_available' => $paymentAvailable,
@@ -143,6 +163,7 @@ class MyServiceRequestsController extends Controller
 
         return Inertia::render('client/requests/index', [
             'requests' => $serviceRequests,
+            'view' => $view,
         ]);
     }
 }

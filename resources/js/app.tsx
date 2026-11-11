@@ -5,8 +5,9 @@ import { initializeTheme } from '@/hooks/use-appearance';
 import AppLayout from '@/layouts/app-layout';
 import AuthLayout from '@/layouts/auth-layout';
 import SettingsLayout from '@/layouts/settings/layout';
+import NetworkStatus from '@/components/network-status';
 
-const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
+const appName = import.meta.env.VITE_APP_NAME || 'ProxiServices';
 
 void createInertiaApp({
     title: (title) => (title ? `${title} - ${appName}` : appName),
@@ -27,6 +28,7 @@ void createInertiaApp({
         return (
             <TooltipProvider delayDuration={0}>
                 {app}
+                <NetworkStatus />
                 <Toaster />
             </TooltipProvider>
         );

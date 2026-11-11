@@ -2,13 +2,14 @@
 
 namespace App\Services;
 
+use App\Contracts\PaymentGateway;
 use App\Models\ServicePayment;
 use App\Models\ServiceRequest as ServiceRequestModel;
 use App\Models\User;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
-class GeniusPayCheckoutService
+class GeniusPayCheckoutService implements PaymentGateway
 {
     /**
      * Create a hosted checkout with GeniusPay without confirming payment.

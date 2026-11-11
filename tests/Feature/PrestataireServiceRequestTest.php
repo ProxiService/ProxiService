@@ -3,6 +3,7 @@
 use App\Models\Category;
 use App\Models\ProviderProfile;
 use App\Models\Service;
+use App\Models\ServicePayment;
 use App\Models\ServiceRequest as ServiceRequestModel;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -155,11 +156,50 @@ test('un prestataire ne voit que ses propres demandes', function () {
                 'Remplacement du robinet et vérification des joints.',
             )
             ->where('requests.data.0.quotes.0.status', 'pending')
+            ->where('requests.data.0.address', null)
             ->where('requests.data.0.status', 'pending')
         );
 
     expect($otherRequest->id)
         ->not->toBe($fixture['serviceRequest']->id);
+});
+
+test('la navigation Messages prestataire filtre les demandes sans conversation', function () {
+    $fixture = createProxiProviderRequestFixture('accepted');
+    createProxiServiceRequest($fixture['client'], $fixture['profile'], $fixture['service'], 'pending');
+
+    $this->actingAs($fixture['provider'])
+        ->get(route('prestataire.requests.index', ['view' => 'messages']))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('prestataire/requests/index')
+            ->where('view', 'messages')
+            ->has('requests.data', 1)
+            ->where('requests.data.0.id', $fixture['serviceRequest']->id)
+        );
+});
+
+test('le prestataire ne reçoit l’adresse détaillée qu’après paiement confirmé', function () {
+    $fixture = createProxiProviderRequestFixture('accepted');
+
+    $this->actingAs($fixture['provider'])
+        ->get(route('prestataire.requests.index'))
+        ->assertInertia(fn (Assert $page) => $page->where('requests.data.0.address', null));
+
+    $payment = new ServicePayment([
+        'provider' => 'geniuspay',
+        'provider_reference' => 'address-'.$fixture['serviceRequest']->id,
+        'amount' => 20000,
+        'currency' => 'XOF',
+        'status' => 'completed',
+        'environment' => 'sandbox',
+    ]);
+    $payment->client()->associate($fixture['client']);
+    $fixture['serviceRequest']->payments()->save($payment);
+
+    $this->actingAs($fixture['provider'])
+        ->get(route('prestataire.requests.index'))
+        ->assertInertia(fn (Assert $page) => $page->where('requests.data.0.address', 'Près du marché'));
 });
 
 test('un prestataire peut accepter sa propre demande en attente', function () {

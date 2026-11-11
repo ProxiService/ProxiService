@@ -17,16 +17,22 @@ function createReviewReportingTestFixture(): array
     $reviewer = User::factory()->create([
         'role' => 'client',
         'email_verified_at' => now(),
+        'two_factor_secret' => 'test-secret',
+        'two_factor_confirmed_at' => now(),
     ]);
 
     $reporter = User::factory()->create([
         'role' => 'client',
         'email_verified_at' => now(),
+        'two_factor_secret' => 'test-secret',
+        'two_factor_confirmed_at' => now(),
     ]);
 
     $provider = User::factory()->create([
         'role' => 'prestataire',
         'email_verified_at' => now(),
+        'two_factor_secret' => 'test-secret',
+        'two_factor_confirmed_at' => now(),
     ]);
 
     $profile = new ProviderProfile([
@@ -216,6 +222,8 @@ test('un administrateur peut consulter les signalements en attente', function ()
     $admin = User::factory()->create([
         'role' => 'admin',
         'email_verified_at' => now(),
+        'two_factor_secret' => 'test-secret',
+        'two_factor_confirmed_at' => now(),
     ]);
 
     createReviewReportForTest(
@@ -242,6 +250,8 @@ test('un administrateur peut rejeter un signalement sans masquer l’avis', func
     $admin = User::factory()->create([
         'role' => 'admin',
         'email_verified_at' => now(),
+        'two_factor_secret' => 'test-secret',
+        'two_factor_confirmed_at' => now(),
     ]);
 
     $report = createReviewReportForTest(
@@ -270,6 +280,8 @@ test('un administrateur peut masquer un avis signalé', function () {
     $admin = User::factory()->create([
         'role' => 'admin',
         'email_verified_at' => now(),
+        'two_factor_secret' => 'test-secret',
+        'two_factor_confirmed_at' => now(),
     ]);
 
     $report = createReviewReportForTest(
@@ -280,6 +292,8 @@ test('un administrateur peut masquer un avis signalé', function () {
     $otherReporter = User::factory()->create([
         'role' => 'client',
         'email_verified_at' => now(),
+        'two_factor_secret' => 'test-secret',
+        'two_factor_confirmed_at' => now(),
     ]);
     $otherReport = createReviewReportForTest(
         $fixture['review'],

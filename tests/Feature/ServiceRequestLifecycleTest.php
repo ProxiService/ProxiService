@@ -343,3 +343,132 @@ test('la confirmation finale du client notifie le prestataire', function () {
         'status' => 'completed',
     ]);
 });
+
+test('le client peut annuler gratuitement une demande avant acceptation', function () {
+    $fixture = createLifecycleProxiFixture('pending');
+
+    $this->from(route('client.requests.index'))
+        ->actingAs($fixture['client'])
+        ->post(route('client.requests.cancel', $fixture['serviceRequest']), [
+            'reason' => 'Je ne souhaite plus effectuer ces travaux.',
+        ])
+        ->assertRedirect(route('client.requests.index'));
+
+    $this->assertDatabaseHas('service_requests', [
+        'id' => $fixture['serviceRequest']->id,
+        'status' => 'cancelled',
+        'cancelled_by_user_id' => $fixture['client']->id,
+        'dispute_status' => null,
+    ]);
+});
+
+test('une annulation après acceptation ouvre un arbitrage sans prélever de frais', function () {
+    $fixture = createLifecycleProxiFixture('accepted');
+
+    $this->actingAs($fixture['client'])
+        ->post(route('client.requests.cancel', $fixture['serviceRequest']), [
+            'reason' => 'Je dois annuler cette intervention acceptée.',
+        ])
+        ->assertRedirect();
+
+    $this->assertDatabaseHas('service_requests', [
+        'id' => $fixture['serviceRequest']->id,
+        'status' => 'accepted',
+        'dispute_status' => 'open',
+        'disputed_by_user_id' => $fixture['client']->id,
+    ]);
+    $this->assertDatabaseCount('service_payments', 0);
+});
+
+test('seul un participant peut ouvrir un litige et le second signalement est refusé', function () {
+    $fixture = createLifecycleProxiFixture('accepted');
+    $otherClient = User::factory()->create(['role' => 'client', 'email_verified_at' => now()]);
+
+    $this->actingAs($otherClient)
+        ->post(route('client.requests.dispute', $fixture['serviceRequest']), [
+            'reason' => 'Je ne suis pas participant à cette demande.',
+        ])
+        ->assertNotFound();
+
+    $this->actingAs($fixture['provider'])
+        ->post(route('prestataire.requests.dispute', $fixture['serviceRequest']), [
+            'reason' => 'Le client ne répond plus à mes messages.',
+        ])
+        ->assertRedirect();
+
+    $this->actingAs($fixture['client'])
+        ->post(route('client.requests.dispute', $fixture['serviceRequest']), [
+            'reason' => 'Je signale également ce problème.',
+        ])
+        ->assertStatus(409);
+
+    $this->assertDatabaseHas('service_requests', [
+        'id' => $fixture['serviceRequest']->id,
+        'dispute_status' => 'open',
+        'disputed_by_user_id' => $fixture['provider']->id,
+    ]);
+});
+
+test('un signalement ouvert bloque le démarrage et la confirmation finale', function () {
+    $fixture = createLifecycleProxiFixture('accepted');
+    $fixture['serviceRequest']->forceFill([
+        'dispute_status' => 'open',
+        'dispute_reason' => 'Le tarif est contesté par les deux parties.',
+        'disputed_by_user_id' => $fixture['client']->id,
+        'disputed_at' => now(),
+    ])->save();
+
+    $this->actingAs($fixture['provider'])
+        ->patch(route('prestataire.requests.start', $fixture['serviceRequest']))
+        ->assertStatus(409);
+
+    $fixture['serviceRequest']->status = 'awaiting_confirmation';
+    $fixture['serviceRequest']->save();
+    $payment = new ServicePayment([
+        'provider' => 'geniuspay', 'amount' => 5000, 'currency' => 'XOF',
+        'status' => 'completed', 'environment' => 'sandbox', 'paid_at' => now(),
+    ]);
+    $payment->client()->associate($fixture['client']);
+    $fixture['serviceRequest']->payments()->save($payment);
+
+    $this->actingAs($fixture['client'])
+        ->patch(route('client.requests.confirm-completion', $fixture['serviceRequest']))
+        ->assertStatus(409);
+
+    $this->assertDatabaseCount('service_commissions', 0);
+});
+
+test('un administrateur 2FA peut arbitrer un litige et la décision est auditée', function () {
+    $fixture = createLifecycleProxiFixture('in_progress');
+    $fixture['serviceRequest']->forceFill([
+        'dispute_status' => 'open',
+        'dispute_reason' => 'Une partie demande l’annulation de l’intervention commencée.',
+        'disputed_by_user_id' => $fixture['client']->id,
+        'disputed_at' => now(),
+    ])->save();
+    $admin = User::factory()->create([
+        'role' => 'admin',
+        'email_verified_at' => now(),
+        'two_factor_secret' => 'test-secret',
+        'two_factor_confirmed_at' => now(),
+    ]);
+
+    $this->actingAs($admin)
+        ->post(route('admin.requests.disputes.resolve', $fixture['serviceRequest']), [
+            'decision' => 'cancel',
+            'resolution' => 'Les pièces jointes confirment que le travail ne peut pas continuer.',
+        ])
+        ->assertRedirect();
+
+    $this->assertDatabaseHas('service_requests', [
+        'id' => $fixture['serviceRequest']->id,
+        'status' => 'cancelled',
+        'dispute_status' => 'resolved',
+        'dispute_resolved_by_user_id' => $admin->id,
+    ]);
+    $this->assertDatabaseHas('admin_audits', [
+        'actor_id' => $admin->id,
+        'action' => 'service_request.dispute_resolved',
+        'auditable_id' => $fixture['serviceRequest']->id,
+    ]);
+});

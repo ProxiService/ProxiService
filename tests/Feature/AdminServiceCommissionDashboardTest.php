@@ -16,16 +16,22 @@ function createAdminFinanceDashboardFixture(): array
     $admin = User::factory()->create([
         'role' => 'admin',
         'email_verified_at' => now(),
+        'two_factor_secret' => 'test-secret',
+        'two_factor_confirmed_at' => now(),
     ]);
 
     $client = User::factory()->create([
         'role' => 'client',
         'email_verified_at' => now(),
+        'two_factor_secret' => 'test-secret',
+        'two_factor_confirmed_at' => now(),
     ]);
 
     $provider = User::factory()->create([
         'role' => 'prestataire',
         'email_verified_at' => now(),
+        'two_factor_secret' => 'test-secret',
+        'two_factor_confirmed_at' => now(),
     ]);
 
     $profile = new ProviderProfile([

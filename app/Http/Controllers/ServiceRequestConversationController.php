@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreServiceRequestMessageRequest;
 use App\Models\ServiceRequest as ServiceRequestModel;
 use App\Models\ServiceRequestMessage;
+use App\Services\PrePaymentContactGuard;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -44,6 +46,9 @@ class ServiceRequestConversationController extends Controller
             ->values();
 
         $isClient = $request->user()->role === 'client';
+        $paymentConfirmed = $serviceRequest->payments()
+            ->where('status', 'completed')
+            ->exists();
 
         return Inertia::render('conversations/show', [
             'conversation' => [
@@ -51,7 +56,7 @@ class ServiceRequestConversationController extends Controller
                 'description' => $serviceRequest->description,
                 'city' => $serviceRequest->city,
                 'neighborhood' => $serviceRequest->neighborhood,
-                'address' => $serviceRequest->address,
+                'address' => $paymentConfirmed ? $serviceRequest->address : null,
                 'scheduled_at' => $serviceRequest->scheduled_at
                     ?->format('d/m/Y H:i'),
                 'service_name' => $serviceRequest->service->name,
@@ -75,14 +80,20 @@ class ServiceRequestConversationController extends Controller
      * Envoyer un message dans la conversation.
      */
     public function store(
-        Request $request,
+        StoreServiceRequestMessageRequest $request,
         ServiceRequestModel $serviceRequest,
     ): RedirectResponse {
         $this->ensureCanAccess($request, $serviceRequest);
 
-        $validated = $request->validate([
-            'body' => ['required', 'string', 'min:1', 'max:5000'],
-        ]);
+        $validated = $request->validated();
+
+        $paymentConfirmed = $serviceRequest->payments()
+            ->where('status', 'completed')
+            ->exists();
+
+        if (! $paymentConfirmed) {
+            app(PrePaymentContactGuard::class)->ensureNoContactDetails($validated['body']);
+        }
 
         $message = new ServiceRequestMessage([
             'body' => $validated['body'],
@@ -110,34 +121,6 @@ class ServiceRequestConversationController extends Controller
         Request $request,
         ServiceRequestModel $serviceRequest,
     ): void {
-        $user = $request->user();
-
-        $isClient = $user->role === 'client'
-            && (int) $serviceRequest->client_id === (int) $user->id;
-
-        $providerProfile = $user->role === 'prestataire'
-            ? $user->providerProfile
-            : null;
-
-        $isProvider = $providerProfile !== null
-            && (int) $serviceRequest->provider_profile_id
-                === (int) $providerProfile->id;
-
-        $chatAvailable = in_array(
-            $serviceRequest->status,
-            [
-                'accepted',
-                'in_progress',
-                'awaiting_confirmation',
-                'completed',
-            ],
-            true,
-        );
-
-        abort_unless(
-            ($isClient || $isProvider) && $chatAvailable,
-            404,
-            'Conversation introuvable.',
-        );
+        abort_unless($request->user()?->can('message', $serviceRequest), 404, 'Conversation introuvable.');
     }
 }

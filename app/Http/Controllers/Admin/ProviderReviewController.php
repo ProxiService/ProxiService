@@ -4,7 +4,10 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\ProviderProfile;
+use App\Services\AdminAuditLogger;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -58,7 +61,9 @@ class ProviderReviewController extends Controller
      * Approuver un profil professionnel.
      */
     public function approve(
-        ProviderProfile $providerProfile
+        Request $request,
+        ProviderProfile $providerProfile,
+        AdminAuditLogger $audit,
     ): RedirectResponse {
         abort_unless(
             $providerProfile->status === 'pending',
@@ -66,9 +71,11 @@ class ProviderReviewController extends Controller
             'Ce profil ne peut plus être approuvé dans son état actuel.'
         );
 
-        $providerProfile->forceFill([
-            'status' => 'approved',
-        ])->save();
+        DB::transaction(function () use ($request, $providerProfile, $audit): void {
+            $before = ['status' => $providerProfile->status];
+            $providerProfile->forceFill(['status' => 'approved'])->save();
+            $audit->record($request, 'provider_profile.approved', $providerProfile, $before, ['status' => 'approved']);
+        });
 
         return to_route('admin.providers.index')
             ->with('success', 'Le profil a été approuvé.');
@@ -78,7 +85,9 @@ class ProviderReviewController extends Controller
      * Rejeter un profil professionnel.
      */
     public function reject(
-        ProviderProfile $providerProfile
+        Request $request,
+        ProviderProfile $providerProfile,
+        AdminAuditLogger $audit,
     ): RedirectResponse {
         abort_unless(
             $providerProfile->status === 'pending',
@@ -86,9 +95,11 @@ class ProviderReviewController extends Controller
             'Ce profil ne peut plus être rejeté dans son état actuel.'
         );
 
-        $providerProfile->forceFill([
-            'status' => 'rejected',
-        ])->save();
+        DB::transaction(function () use ($request, $providerProfile, $audit): void {
+            $before = ['status' => $providerProfile->status];
+            $providerProfile->forceFill(['status' => 'rejected'])->save();
+            $audit->record($request, 'provider_profile.rejected', $providerProfile, $before, ['status' => 'rejected']);
+        });
 
         return to_route('admin.providers.index')
             ->with('success', 'Le profil a été rejeté.');

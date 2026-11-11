@@ -103,6 +103,17 @@ test('clients can submit a request to an approved provider', function () {
         'is_urgent' => 1,
         'status' => 'pending',
     ]);
+
+    $this->actingAs($client)
+        ->from($url)
+        ->post($url, [
+            'description' => 'Contacte-moi au +225 07 12 34 56 78 pour le devis.',
+            'city' => 'Anyama',
+            'neighborhood' => 'Centre',
+        ])
+        ->assertSessionHasErrors('description');
+
+    $this->assertDatabaseCount('service_requests', 1);
 });
 
 test('clients cannot request a service from an unapproved provider', function () {

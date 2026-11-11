@@ -2,7 +2,10 @@
 
 namespace App\Providers;
 
+use App\Contracts\PaymentGateway;
+use App\Services\GeniusPayCheckoutService;
 use Carbon\CarbonImmutable;
+use Illuminate\Http\Middleware\TrustProxies;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\ServiceProvider;
@@ -15,7 +18,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->bind(PaymentGateway::class, GeniusPayCheckoutService::class);
     }
 
     /**
@@ -23,6 +26,14 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        TrustProxies::flushState();
+
+        $trustedProxies = config('app.trusted_proxies');
+
+        if (is_string($trustedProxies) && $trustedProxies !== '') {
+            TrustProxies::at($trustedProxies);
+        }
+
         $this->configureDefaults();
     }
 

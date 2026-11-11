@@ -33,6 +33,10 @@
         <link rel="icon" href="/favicon.ico" sizes="any">
         <link rel="icon" href="/favicon.svg" type="image/svg+xml">
         <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+        <link rel="manifest" href="/manifest.webmanifest">
+        <meta name="theme-color" content="#176b68">
+        <meta name="description" content="ProxiServices vous aide à trouver un artisan à Abidjan et à suivre vos échanges.">
+        <meta property="og:site_name" content="ProxiServices">
 
         @fonts
 
@@ -44,5 +48,10 @@
     </head>
     <body class="font-sans antialiased">
         <x-inertia::app />
+        <script>
+            if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+                window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+            }
+        </script>
     </body>
 </html>
