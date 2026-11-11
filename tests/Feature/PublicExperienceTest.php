@@ -58,7 +58,7 @@ test('robots.txt fournit un sitemap absolu et exclut les espaces privés', funct
     $this->get('/robots.txt')
         ->assertOk()
         ->assertHeader('Content-Type', 'text/plain; charset=UTF-8')
-        ->assertSee('Sitemap: http://localhost/sitemap.xml')
+        ->assertSee('Sitemap: '.url('/sitemap.xml'))
         ->assertSee('Disallow: /admin/');
 });
 
